@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.nav
 
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.layout.*
@@ -56,13 +57,13 @@ fun MainShell() {
             }
         },
     ) {
-        val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>(); val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>()
+        val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<Float>(); val effects = MaterialTheme.motionScheme.defaultEffectsSpec<Float>(); val fastEffects = MaterialTheme.motionScheme.fastEffectsSpec<Float>(); val slideSpec = MaterialTheme.motionScheme.defaultSpatialSpec<IntOffset>()
         NavHost(
             nav, startDestination = Dest.Home.route,
-            enterTransition = { fadeIn(effects) + slideInHorizontally(MaterialTheme.motionScheme.defaultSpatialSpec()) { it / 12 } + scaleIn(spatial, .96f) },
-            exitTransition = { fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + scaleOut(spatial, .98f) },
+            enterTransition = { fadeIn(effects) + slideInHorizontally(slideSpec) { it / 12 } + scaleIn(spatial, .96f) },
+            exitTransition = { fadeOut(fastEffects) + scaleOut(spatial, .98f) },
             popEnterTransition = { fadeIn(effects) + scaleIn(spatial, .98f) },
-            popExitTransition = { fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) + slideOutHorizontally(MaterialTheme.motionScheme.defaultSpatialSpec()) { it / 12 } },
+            popExitTransition = { fadeOut(fastEffects) + slideOutHorizontally(slideSpec) { it / 12 } },
         ) {
             composable(Dest.Home.route) { HomeScreen(nav) }
             composable(Dest.Plan.route) { ScheduleScreen() }

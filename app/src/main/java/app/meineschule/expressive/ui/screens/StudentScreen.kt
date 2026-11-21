@@ -64,7 +64,7 @@ fun StudentScreen(id: String, onBack: () -> Unit) {
                                         ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(safe.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                                     } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) }
                                 }
-                            }, Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.OpenInBrowser, null); Spacer(Modifier.width(8.dp)); Text("Im Web bearbeiten") }
+                            }, modifier = Modifier.fillMaxWidth(), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.OpenInBrowser, null); Spacer(Modifier.width(8.dp)); Text("Im Web bearbeiten") }
                         }
                     }
                 }

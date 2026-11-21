@@ -24,7 +24,9 @@ fun AppRoot(locked: Boolean, onUnlock: () -> Unit) {
     LaunchedEffect(Unit) { if (app.auth.state.value == AuthState.Unknown) app.auth.restore() }
 
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.surface) {
-        AnimatedContent(targetState = auth::class, transitionSpec = { (fadeIn(MaterialTheme.motionScheme.defaultEffectsSpec()) + scaleIn(MaterialTheme.motionScheme.defaultSpatialSpec(), .94f)) togetherWith fadeOut(MaterialTheme.motionScheme.fastEffectsSpec()) }, label = "auth") { kind ->
+        val ms = MaterialTheme.motionScheme
+        val inEffects = ms.defaultEffectsSpec<Float>(); val inSpatial = ms.defaultSpatialSpec<Float>(); val outEffects = ms.fastEffectsSpec<Float>()
+        AnimatedContent(targetState = auth::class, transitionSpec = { (fadeIn(inEffects) + scaleIn(inSpatial, .94f)) togetherWith fadeOut(outEffects) }, label = "auth") { kind ->
             when (kind) {
                 AuthState.Unknown::class -> Splash()
                 AuthState.SignedIn::class -> if (locked) LockScreen(onUnlock) else SignedInHost()

@@ -38,11 +38,11 @@ object HipParser {
             if (tag.matches(Regex("h[1-6]"))) {
                 val t = el.text().trim().lowercase()
                 val hit = listOf("noten", "fehlzeiten", "bemerkungen", "unterricht").firstOrNull { t == it || t.startsWith(it) }
-                if (hit != null && tag != "h4") { section = hit; subject = null; recognized = true; used += el; continue }
-                if (tag == "h4" && section == "noten") { subject = el.text().trim(); used += el; continue }
+                if (hit != null && tag != "h4") { section = hit; subject = null; recognized = true; used.add(el); continue }
+                if (tag == "h4" && section == "noten") { subject = el.text().trim(); used.add(el); continue }
             }
             if (tag != "tr" || section == null) continue
-            if (el.children().any { it.tagName() == "th" }) { used += el; continue }
+            if (el.children().any { it.tagName() == "th" }) { used.add(el); continue }
             val c = el.children().filter { it.tagName() == "td" }.map { it.text().trim() }
             val ok = when {
                 section == "noten" && c.size == 4 -> { grades += Grade(subject ?: "Ohne Fach", c[0], c[1], c[2], c[3]); true }
@@ -51,7 +51,7 @@ object HipParser {
                 section == "unterricht" && c.size == 3 -> { lessons += HipLesson(c[0], c[1], c[2], extractDue(c[2])); true }
                 else -> false
             }
-            if (ok) used += el
+            if (ok) used.add(el)
         }
         // Rest: Textblöcke, die nicht erkannt wurden (z. B. Hinweise)
         val other = if (recognized && (grades.isNotEmpty() || absences.isNotEmpty() || remarks.isNotEmpty() || lessons.isNotEmpty())) emptyList()

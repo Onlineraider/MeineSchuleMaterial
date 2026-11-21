@@ -105,7 +105,7 @@ fun AbsenceScreen(onBack: () -> Unit) {
 @Composable fun Dropdown(label: String, options: List<Pair<String, String>>, value: String?, onPick: (String) -> Unit) {
     var open by remember { mutableStateOf(false) }
     ExposedDropdownMenuBox(open, { open = it }) {
-        OutlinedTextField(options.firstOrNull { it.first == value }?.second.orEmpty(), {}, readOnly = true, label = { Text(label) }, singleLine = true, shape = RoundedCornerShape(16.dp), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+        OutlinedTextField(options.firstOrNull { it.first == value }?.second.orEmpty(), {}, readOnly = true, label = { Text(label) }, singleLine = true, shape = RoundedCornerShape(16.dp), trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) }, modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
         ExposedDropdownMenu(open, { open = false }) { options.forEach { (k, v) -> DropdownMenuItem({ Text(v) }, { open = false; onPick(k) }) } }
     }
 }
