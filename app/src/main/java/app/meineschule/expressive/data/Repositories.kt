@@ -153,5 +153,5 @@ class Repos(private val api: ApiClient, private val portal: PortalClient) {
         suspend fun remove(studentId: String, date: LocalDate) { api.delete(api.scoped("AfterSchoolCare/Parent/Student/${seg(studentId)}/$date")) }
     }
 
-    suspend fun schedule(date: LocalDate, studentId: String?): Schedule = parseSchedule(portal.scheduleJson(api.school ?: throw ApiException(ErrorKind.Client, "Keine Schule"), date, studentId))
+    suspend fun schedule(date: LocalDate, studentId: String?, cog: String? = null): Schedule = parseSchedule(portal.scheduleJson(api.school ?: throw ApiException(ErrorKind.Client, "Keine Schule"), date, studentId, cog))
 }

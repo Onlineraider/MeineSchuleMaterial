@@ -38,9 +38,16 @@ fun ScheduleScreen() {
     var weekStart by remember { mutableStateOf(Dates.weekStart(if (today.dayOfWeek.value >= 6) today.plusDays(2) else today)) }
     var selected by remember { mutableStateOf(if (today.dayOfWeek.value <= 5) today else weekStart) }
     var view by remember { mutableStateOf(PlanView.Day) }
-    var studentIdx by remember { mutableIntStateOf(0) }
-    val students = school?.students.orEmpty(); val student = students.getOrNull(studentIdx)
-    val loader = rememberLoader(gen, weekStart, student?.id, school != null) { app.repos.schedule(weekStart, student?.id) }
+    // Ansicht wie im Portal: Vertretungen (alle) · Schüler · Klassen · Gruppen
+    var studentIdx by remember { mutableIntStateOf(0) }; var target by remember { mutableStateOf<Pair<String, String>?>(null) } // kind ("S"|"C"|"G") to id
+    val students = school?.students.orEmpty()
+    LaunchedEffect(students.size) { if (target == null && students.isNotEmpty()) target = "S" to students[0].id }
+    val classes = rememberLoader(gen) { runCatching { app.repos.school.classes() }.getOrDefault(emptyList()) }
+    val groups = rememberLoader(gen) { runCatching { app.repos.school.groups() }.getOrDefault(emptyList()) }
+    val cl = (classes.state as? UiState.Ready)?.data.orEmpty(); val gr = (groups.state as? UiState.Ready)?.data.orEmpty()
+    val label = when (target?.first) { "S" -> students.firstOrNull { it.id == target!!.second }?.name; "C" -> cl.firstOrNull { it.id == target!!.second }?.name?.let { "Klasse $it" }; "G" -> gr.firstOrNull { it.id == target!!.second }?.name; else -> null } ?: "Vertretungen"
+    val loader = rememberLoader(gen, weekStart, target, school != null) { app.repos.schedule(weekStart, target?.takeIf { it.first == "S" }?.second, target?.takeIf { it.first != "S" }?.second) }
+    var pickerOpen by remember { mutableStateOf(false) }
     val end = weekStart.plusDays(4)
     var times by remember { mutableStateOf(LessonTimes.parse(app.prefs.lessonTimes)) }; var editTimes by remember { mutableStateOf(false) }
     var detailOf by remember { mutableStateOf<Triple<ScheduleDay, Slot, LessonEntry>?>(null) }
@@ -55,7 +62,16 @@ fun ScheduleScreen() {
                 WeekDropdown(weekStart, today, Modifier.weight(1f)) { weekStart = it; selected = it.plusDays((selected.dayOfWeek.value - 1).toLong().coerceIn(0, 4)) }
                 IconButton(onClick = { weekStart = weekStart.plusWeeks(1); selected = weekStart.plusDays((selected.dayOfWeek.value - 1).toLong()) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Nächste Woche") }
             }
-            if (students.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == studentIdx, { studentIdx = i }, { Text(s.name) }) } }
+            Box(Modifier.padding(horizontal = 16.dp)) {
+                OutlinedButton({ pickerOpen = true }, Modifier.fillMaxWidth()) { Icon(Icons.Rounded.Groups, null); Spacer(Modifier.width(8.dp)); Text(label, Modifier.weight(1f)); Icon(Icons.Rounded.ArrowDropDown, null) }
+                DropdownMenu(pickerOpen, { pickerOpen = false }) {
+                    fun item(t: String, sel: Boolean, indent: Boolean, onClick: () -> Unit) = DropdownMenuItem(text = { Text(t, Modifier.padding(start = if (indent) 12.dp else 0.dp)) }, onClick = { pickerOpen = false; onClick() }, trailingIcon = { RadioButton(sel, null) })
+                    item("Vertretungen", target == null, false) { target = null }
+                    if (students.isNotEmpty()) { Text("Schüler", Modifier.padding(16.dp, 8.dp), style = MaterialTheme.typography.labelLarge); students.forEach { s -> item(s.name, target == "S" to s.id, true) { target = "S" to s.id } } }
+                    if (cl.isNotEmpty()) { Text("Klassen", Modifier.padding(16.dp, 8.dp), style = MaterialTheme.typography.labelLarge); cl.forEach { c -> item(c.name, target == "C" to c.id, true) { target = "C" to c.id } } }
+                    if (gr.isNotEmpty()) { Text("Gruppen", Modifier.padding(16.dp, 8.dp), style = MaterialTheme.typography.labelLarge); gr.forEach { c -> item(c.name, target == "G" to c.id, true) { target = "G" to c.id } } }
+                }
+            }
             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp).fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
                 SingleChoiceSegmentedButtonRow { PlanView.entries.forEachIndexed { i, v -> SegmentedButton(view == v, { view = v }, SegmentedButtonDefaults.itemShape(i, 2)) { Text(if (v == PlanView.Day) "Tag" else "Woche") } } }
             }
