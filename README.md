@@ -8,7 +8,7 @@ Inoffizieller, moderner Client für **MeineSchule.digital**, gebaut ausschließl
 1. **Android Studio** (aktuell, Meerkat oder neuer) und JDK 17 installieren; Projektordner öffnen.
 2. In `local.properties` (nicht einchecken!) eintragen:
    ```properties
-   msd.origin=https://DEIN-SCHULSERVER.example
+   msd.origin=https://meineschule.digital   # Standard, nur ändern wenn nötig
    msd.appId=DEINE-APP-ID
    ```
    Beides ist nötig: `origin` ist die Basis-URL der Plattform (nur **https**), `appId` die für Token-Aufrufe erforderliche App-Kennung (laut Doku verlangt, aber nicht öffentlich dokumentiert → du musst sie selbst liefern).

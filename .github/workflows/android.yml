@@ -17,7 +17,7 @@ jobs:
         with: { gradle-version: "9.3.1" }
       - name: Konfiguration (Secrets oder Platzhalter)
         run: |
-          echo "msd.origin=${{ secrets.MSD_ORIGIN || 'https://example.invalid' }}" >> local.properties
+          echo "msd.origin=${{ secrets.MSD_ORIGIN || 'https://meineschule.digital' }}" >> local.properties
           echo "msd.appId=${{ secrets.MSD_APP_ID || 'CI' }}" >> local.properties
       - name: Unit-Tests
         run: gradle testDebugUnitTest --no-daemon
