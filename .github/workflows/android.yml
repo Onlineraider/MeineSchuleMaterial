@@ -18,7 +18,6 @@ jobs:
       - name: Konfiguration (Secrets oder Platzhalter)
         run: |
           echo "msd.origin=${{ secrets.MSD_ORIGIN || 'https://meineschule.digital' }}" >> local.properties
-          echo "msd.appId=${{ secrets.MSD_APP_ID || 'CI' }}" >> local.properties
       - name: Unit-Tests
         run: gradle testDebugUnitTest --no-daemon
       - name: Debug-APK bauen

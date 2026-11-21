@@ -18,7 +18,9 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.*
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
+import android.net.Uri
 import app.meineschule.expressive.LocalApp
+import app.meineschule.expressive.core.DeepLink
 import app.meineschule.expressive.ui.screens.*
 
 enum class Dest(val route: String, val label: String, val icon: ImageVector, val selected: ImageVector) {
@@ -40,6 +42,18 @@ fun MainShell() {
     val top = Dest.entries.firstOrNull { it.route == route }
     val state by app.session.state.collectAsState()
     val school by app.session.school.collectAsState()
+
+    var shared by remember { mutableStateOf<DeepLink.Share?>(null) }
+    val pending by app.pendingLink.collectAsState()
+    LaunchedEffect(pending) {
+        val l = pending ?: return@LaunchedEffect; app.pendingLink.value = null
+        when (l) {
+            is DeepLink.Chat -> nav.navigate("chat/${l.id}")
+            is DeepLink.Profile -> nav.navigate("person?u=${Uri.encode(l.link.userId)}&n=${Uri.encode(l.link.name)}" + (l.link.server?.let { "&b=${Uri.encode(it)}" } ?: "") + (l.link.school?.let { "&sc=${Uri.encode(it)}" } ?: "") + (l.link.schoolName?.let { "&sn=${Uri.encode(it)}" } ?: ""))
+            is DeepLink.Section -> nav.navigate(l.route) { launchSingleTop = true }
+            is DeepLink.Share -> { shared = l; nav.navigate("share") }
+        }
+    }
 
     val layout = if (top != null) NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo()) else NavigationSuiteType.None
     NavigationSuiteScaffold(
@@ -67,8 +81,16 @@ fun MainShell() {
         ) {
             composable(Dest.Home.route) { HomeScreen(nav) }
             composable(Dest.Plan.route) { ScheduleScreen() }
-            composable(Dest.Chats.route) { ChatsScreen(onOpen = { nav.navigate("chat/$it") }) }
-            composable("chat/{id}", listOf(navArgument("id") { type = NavType.StringType })) { ChatScreen(it.arguments!!.getString("id")!!, onBack = { nav.popBackStack() }) }
+            composable(Dest.Chats.route) { ChatsScreen(nav) }
+            composable("chat/{id}", listOf(navArgument("id") { type = NavType.StringType })) { ChatScreen(it.arguments!!.getString("id")!!, nav) }
+            composable("newchat?edit={edit}&prefill={prefill}", listOf(
+                navArgument("edit") { type = NavType.StringType; nullable = true; defaultValue = null },
+                navArgument("prefill") { type = NavType.StringType; nullable = true; defaultValue = null },
+            )) { e -> NewChatScreen(nav, e.arguments?.getString("edit"), e.arguments?.getString("prefill")?.split('\n')?.filter { it.isNotBlank() }.orEmpty()) }
+            composable("person?u={u}&n={n}&b={b}&sc={sc}&sn={sn}", listOf("u", "n", "b", "sc", "sn").map { k -> navArgument(k) { type = NavType.StringType; nullable = true; defaultValue = null } }) { e ->
+                val a = e.arguments!!; PersonScreen(a.getString("u").orEmpty(), a.getString("n").orEmpty(), a.getString("b"), a.getString("sc"), a.getString("sn"), nav)
+            }
+            composable("share") { ShareScreen(shared?.text, shared?.uris.orEmpty(), nav) }
             composable(Dest.Calendar.route) { CalendarScreen() }
             composable(Dest.More.route) { MoreScreen(nav) }
             composable("media") { MediaScreen(nav) }

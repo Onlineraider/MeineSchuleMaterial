@@ -1,6 +1,8 @@
 package app.meineschule.expressive.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -40,8 +42,11 @@ fun ScheduleScreen() {
     val students = school?.students.orEmpty(); val student = students.getOrNull(studentIdx)
     val loader = rememberLoader(gen, weekStart, student?.id, school != null) { app.repos.schedule(weekStart, student?.id) }
     val end = weekStart.plusDays(4)
+    var times by remember { mutableStateOf(LessonTimes.parse(app.prefs.lessonTimes)) }; var editTimes by remember { mutableStateOf(false) }
+    var detailOf by remember { mutableStateOf<Triple<ScheduleDay, Slot, LessonEntry>?>(null) }
 
     PageScaffold(title = "Stundenplan", subtitle = "Deine Woche · ${Dates.range(weekStart, end)}", actions = {
+        IconButton(onClick = { editTimes = true }) { Icon(Icons.Rounded.Schedule, "Unterrichtszeiten") }
         FilledTonalButton(onClick = { val t = if (today.dayOfWeek.value <= 5) today else today.plusDays((8 - today.dayOfWeek.value).toLong()); weekStart = Dates.weekStart(t); selected = t }, shapes = ButtonDefaults.shapes(), modifier = Modifier.padding(end = 8.dp)) { Icon(Icons.Rounded.Today, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Heute") }
     }) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding()).fillMaxSize()) {
@@ -58,10 +63,20 @@ fun ScheduleScreen() {
                 (0..4).forEach { i -> val d = weekStart.plusDays(i.toLong()); Tab(selected = d == selected, onClick = { selected = d }, text = { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(Dates.weekday(d), fontWeight = FontWeight.Bold); Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall) } }) }
             }
             StateHost(loader, Modifier.weight(1f), isEmpty = { it.days.isEmpty() }, empty = { EmptyState(Icons.Rounded.EventAvailable, "Kein Stundenplan", "Für diese Woche liegt kein Stundenplan vor.") }) { sched ->
-                if (view == PlanView.Day) DayView(sched.days.firstOrNull { it.date == selected }, selected) else WeekView(sched, today)
+                val ch = sched.changes()
+                Column {
+                    if (ch.isNotEmpty()) { val nx = ch.count { it.third.cancelled }; InfoBanner("Diese Woche: " + listOfNotNull(nx.takeIf { it > 0 }?.let { "$it Entfall" + if (it > 1) "e" else "" }, (ch.size - nx).takeIf { it > 0 }?.let { "$it Änderung" + if (it > 1) "en" else "" }).joinToString(" · "), Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
+                    if (view == PlanView.Day) DayView(sched.days.firstOrNull { it.date == selected }, selected, times) { d, sl, e -> detailOf = Triple(d, sl, e) } else WeekView(sched, today, times)
+                }
             }
         }
     }
+    ScheduleDialogs(detailOf, times, editTimes, { detailOf = null }, { editTimes = false }) { v -> times = v; app.prefs.lessonTimes = LessonTimes.serialize(v); editTimes = false }
+}
+
+@Composable private fun ScheduleDialogs(detail: Triple<ScheduleDay, Slot, LessonEntry>?, times: List<TimeRange>, edit: Boolean, onCloseDetail: () -> Unit, onCloseEdit: () -> Unit, onSave: (List<TimeRange>) -> Unit) {
+    detail?.let { DetailDialog(it, times, onCloseDetail) }
+    if (edit) TimesDialog(times, onSave, onCloseEdit)
 }
 
 @Composable private fun WeekDropdown(current: LocalDate, today: LocalDate, modifier: Modifier, onPick: (LocalDate) -> Unit) {
@@ -76,23 +91,24 @@ fun ScheduleScreen() {
     }
 }
 
-@Composable private fun DayView(day: ScheduleDay?, date: LocalDate) {
+@Composable private fun DayView(day: ScheduleDay?, date: LocalDate, times: List<TimeRange>, onOpen: (ScheduleDay, Slot, LessonEntry) -> Unit) {
     val cs = MaterialTheme.colorScheme
     val slots = day?.activeSlots.orEmpty()
     if (slots.isEmpty()) { EmptyState(Icons.Rounded.EventAvailable, "Heute ist kein Unterricht eingetragen".replace("Heute", if (date == LocalDate.now()) "Heute" else Dates.dayLong(date)), "Genieße die freie Zeit."); return }
     LazyColumn(contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(0.dp)) {
         item { Text("${Dates.dayLong(date)} · ${day!!.lessonCount} Stunden", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 12.dp)) }
-        item { InfoBanner("Die Nummerierung zeigt die Position im Stundenplan. Sie entspricht nicht zwingend der Schulstunde.", modifier = Modifier.padding(bottom = 12.dp)) }
+        if (date == LocalDate.now()) { val (cur, next) = LessonTimes.current(day, times); (cur ?: next)?.let { sl -> item { InfoBanner((if (cur != null) "Jetzt: " else "Als Nächstes: ") + sl.entries.joinToString(" / ") { it.subject }, Icons.Rounded.Schedule, modifier = Modifier.padding(bottom = 12.dp)) } } }
         slots.forEachIndexed { i, slot ->
             item {
                 Row(Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
                     Column(Modifier.width(44.dp).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) { // Zeitachse
                         Box(Modifier.size(32.dp).clip(CircleShape).background(if (slot.entries.isEmpty()) cs.surfaceContainerHigh else cs.primaryContainer), contentAlignment = Alignment.Center) { Text("${slot.index + 1}", style = MaterialTheme.typography.labelLarge, color = if (slot.entries.isEmpty()) cs.onSurfaceVariant else cs.onPrimaryContainer) }
+                        (slot.time ?: times.getOrNull(slot.index))?.let { Text(it.from, style = MaterialTheme.typography.labelSmall, color = cs.onSurfaceVariant) }
                         if (i < slots.lastIndex) Box(Modifier.width(2.dp).weight(1f).background(cs.outlineVariant))
                     }
                     Column(Modifier.weight(1f).padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (slot.entries.isEmpty()) Text("Freistunde", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
-                        slot.entries.forEach { e -> LessonCard(e) }
+                        slot.entries.forEach { e -> LessonCard(e) { onOpen(day!!, slot, e) } }
                     }
                 }
             }
@@ -100,18 +116,18 @@ fun ScheduleScreen() {
     }
 }
 
-@Composable private fun LessonCard(e: LessonEntry) {
+@Composable private fun LessonCard(e: LessonEntry, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().clip(if (e.cancelled) RoundedCornerShape(16.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)).background(if (e.cancelled) cs.errorContainer.copy(alpha = .55f) else cs.surfaceContainerLow).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    Row(Modifier.fillMaxWidth().clip(if (e.cancelled) RoundedCornerShape(16.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)).background(if (e.cancelled) cs.errorContainer.copy(alpha = .55f) else if (e.changed) cs.tertiaryContainer else cs.surfaceContainerLow).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f)) {
             Text(e.subject, style = MaterialTheme.typography.titleMedium, textDecoration = if (e.cancelled) TextDecoration.LineThrough else null, color = if (e.cancelled) cs.onErrorContainer else cs.onSurface)
-            if (e.extra.isNotEmpty()) Text(e.extra.values.joinToString(" · "), style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant) // undokumentierte Zusatzfelder (z. B. Raum/Lehrkraft), falls das Portal sie liefert
+            if (e.hint.isNotBlank()) Text(e.hint, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant) // undokumentierte Zusatzfelder (z. B. Raum/Lehrkraft), falls das Portal sie liefert
         }
-        if (e.cancelled) AssistChip(onClick = {}, label = { Text("Entfällt") }, leadingIcon = { Icon(Icons.Rounded.EventBusy, null, Modifier.size(16.dp)) })
+        if (e.cancelled) AssistChip(onClick = onClick, label = { Text("Entfällt") }, leadingIcon = { Icon(Icons.Rounded.EventBusy, null, Modifier.size(16.dp)) }) else if (e.changed) AssistChip(onClick = onClick, label = { Text("Änderung") }, leadingIcon = { Icon(Icons.Rounded.SwapHoriz, null, Modifier.size(16.dp)) })
     }
 }
 
-@Composable private fun WeekView(sched: Schedule, today: LocalDate) {
+@Composable private fun WeekView(sched: Schedule, today: LocalDate, times: List<TimeRange>) {
     val cs = MaterialTheme.colorScheme
     val days = sched.days.sortedBy { it.date }.take(5)
     val rows = days.maxOfOrNull { it.slots.size } ?: 0
@@ -120,7 +136,7 @@ fun ScheduleScreen() {
         items(rows) { r ->
             if (days.all { it.slots.getOrNull(r)?.entries.isNullOrEmpty() } && (r > 0)) return@items
             Row(Modifier.fillMaxWidth().padding(top = 2.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${r + 1}", Modifier.width(28.dp), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
+                Text("${r + 1}" + (times.getOrNull(r)?.let { "\n" + it.from.take(5) } ?: ""), Modifier.width(28.dp), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
                 days.forEach { d ->
                     val es = d.slots.getOrNull(r)?.entries.orEmpty()
                     Column(Modifier.weight(1f).padding(2.dp).clip(RoundedCornerShape(10.dp)).background(if (es.isEmpty()) androidx.compose.ui.graphics.Color.Transparent else cs.secondaryContainer).defaultMinSize(minHeight = 44.dp).padding(4.dp), verticalArrangement = Arrangement.Center) {
@@ -130,4 +146,34 @@ fun ScheduleScreen() {
             }
         }
     }
+}
+
+@Composable private fun DetailDialog(t: Triple<ScheduleDay, Slot, LessonEntry>, times: List<TimeRange>, onDismiss: () -> Unit) {
+    val (d, slot, e) = t; val time = slot.time ?: times.getOrNull(slot.index)
+    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onDismiss) { Text("Schließen") } }, title = { Text(e.subject) }, text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(if (e.cancelled) "Entfällt" else if (e.changed) "Änderung / Vertretung" else "Planmäßig", style = MaterialTheme.typography.labelLarge)
+            Text("${Dates.dayLong(d.date)} · ${slot.index + 1}. Position im Plan")
+            time?.let { Text("${it.from}–${it.to}" + if (slot.time == null) " (eingestellte Unterrichtszeit)" else "") }
+            e.extra.forEach { (k, v) -> Text("$k: $v", style = MaterialTheme.typography.bodySmall) }
+            e.reason?.let { Text("Änderung erkannt an Feld: $it", style = MaterialTheme.typography.bodySmall) }
+        }
+    })
+}
+
+@Composable private fun TimesDialog(initial: List<TimeRange>, onSave: (List<TimeRange>) -> Unit, onDismiss: () -> Unit) {
+    var rows by remember { mutableStateOf(initial.map { it.from to it.to }) }
+    val ok = Regex("\\d\\d:\\d\\d")
+    AlertDialog(onDismissRequest = onDismiss, title = { Text("Unterrichtszeiten") },
+        text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Das Portal liefert keine Uhrzeiten – hier stellst du die Zeiten deiner Schule ein (Format HH:MM).", style = MaterialTheme.typography.bodySmall)
+            rows.forEachIndexed { i, (a, b) -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("${i + 1}.", Modifier.width(24.dp))
+                OutlinedTextField(a, { v -> rows = rows.toMutableList().also { it[i] = v to b } }, Modifier.weight(1f), singleLine = true, isError = !ok.matches(a))
+                OutlinedTextField(b, { v -> rows = rows.toMutableList().also { it[i] = a to v } }, Modifier.weight(1f), singleLine = true, isError = !ok.matches(b))
+            } }
+            Row { TextButton({ rows = rows + ("" to "") }) { Text("Stunde") }; TextButton({ rows = LessonTimes.DEFAULT.map { it.from to it.to } }) { Text("Standard") } }
+        } },
+        confirmButton = { TextButton({ val v = rows.filter { ok.matches(it.first) && ok.matches(it.second) && it.first < it.second }.map { TimeRange(it.first, it.second) }; if (v.isNotEmpty()) onSave(v) }) { Text("Speichern") } },
+        dismissButton = { TextButton(onDismiss) { Text("Abbrechen") } })
 }

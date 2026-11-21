@@ -16,14 +16,16 @@ class MessageStore {
     fun merge(msgs: List<Message>): Int {
         var added = 0
         for (m in msgs) {
-            m.tempId?.let { byId.remove("tmp:$it") }
+            
             if (m.id.isBlank()) continue
             if (!byId.containsKey(m.id)) added++
             byId[m.id] = m.copy(pending = false, failed = false)
         }
         return added
     }
-    fun addPending(tempId: String, content: String) { byId["tmp:$tempId"] = Message("tmp:$tempId", tempId, content, java.time.LocalDateTime.now().toString(), null, null, true, null, false, false, emptyList(), false, pending = true) }
+    fun addPending(localId: String, content: String, attachmentName: String? = null) { byId["tmp:$localId"] = Message("tmp:$localId", localId, content, java.time.LocalDateTime.now().toString(), null, null, true, null, null, false, true, null, attachmentName, emptyList(), null, pending = true) }
+    fun update(id: String, f: (Message) -> Message) { byId[id]?.let { byId[id] = f(it) } }
+    fun get(id: String): Message? = byId[id]
     fun fail(tempId: String) { byId["tmp:$tempId"]?.let { byId["tmp:$tempId"] = it.copy(failed = true, pending = true) } }
     fun remove(ids: Collection<String>) { ids.forEach { byId.remove(it) } }
     fun clear() { byId.clear(); oldestReached = false }

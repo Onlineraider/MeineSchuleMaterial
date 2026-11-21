@@ -118,9 +118,9 @@ fun HomeScreen(nav: NavHostController) {
                     when (val s = chats.state) {
                         UiState.Loading -> SkeletonList(2)
                         is UiState.Failed -> ErrorState(s.error) { chats.reload() }
-                        is UiState.Ready -> { val top = s.data.sortedByDescending { Dates.parse(it.lastAt) }.take(3)
+                        is UiState.Ready -> { val top = s.data.take(3)
                             if (top.isEmpty()) EmptyState(Icons.Rounded.ChatBubbleOutline, "Noch keine Nachrichten", "Sobald dir jemand schreibt, siehst du es hier.")
-                            else Column { top.forEachIndexed { i, c -> GroupedItem(i, top.size, c.name, supporting = c.last, meta = Dates.chatTime(c.lastAt), unread = c.unread > 0, leading = { PersonAvatar(c.name, key = c.id) }, onClick = { nav.navigate("chat/${c.id}") }) } } }
+                            else Column { top.forEachIndexed { i, c -> GroupedItem(i, top.size, c.name, supporting = c.teaser, unread = c.unread > 0, leading = { PersonAvatar(c.name, key = c.id) }, onClick = { nav.navigate("chat/${c.id}") }) } } }
                     }
                 }
             }

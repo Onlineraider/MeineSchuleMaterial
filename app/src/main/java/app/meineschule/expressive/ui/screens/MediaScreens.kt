@@ -54,12 +54,12 @@ fun MediaScreen(nav: NavHostController) {
     Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomEnd = 28.dp, bottomStart = 10.dp)).background(cs.surfaceContainerLow).clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth().height(170.dp).background(cs.tertiaryContainer)) {
             SubcomposeAsyncImage(ImageRequest.Builder(ctx).data(app.repos.media.imageUrl(m.id)).build(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, loading = { SkeletonBox(Modifier.fillMaxSize()) }, error = { Icon(Icons.Rounded.Image, null, Modifier.align(Alignment.Center).size(40.dp), tint = cs.onTertiaryContainer) })
-            m.category?.let { SuggestionChip(onClick = {}, label = { Text(it) }, modifier = Modifier.padding(12.dp).align(Alignment.TopStart)) }
+            if (m.likeCount > 0) SuggestionChip(onClick = {}, label = { Text("♥ ${m.likeCount}") }, modifier = Modifier.padding(12.dp).align(Alignment.TopStart))
         }
         Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(m.title, style = MaterialTheme.typography.titleLarge); Dates.parse(m.date)?.let { Text(Dates.dayShort(it.toLocalDate()), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant) }
+            Text(m.title, style = MaterialTheme.typography.titleLarge); Dates.parse(m.from ?: m.created)?.let { Text(Dates.dayShort(it.toLocalDate()) + (m.creator?.let { c -> " · $c" } ?: ""), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant) }
             m.text?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 3, color = cs.onSurfaceVariant) }
-            if (m.confirmed == false) AssistChip(onClick = onClick, label = { Text("Bestätigung offen") })
+            if (m.confirmReceive && !m.confirmed) AssistChip(onClick = onClick, label = { Text("Bestätigung offen") })
         }
     }
 }
@@ -74,12 +74,12 @@ fun MediaDetailScreen(id: String, onBack: () -> Unit) {
         StateHost(loader, Modifier.padding(top = pad.calculateTopPadding())) { m ->
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { SubcomposeAsyncImage(ImageRequest.Builder(ctx).data(app.repos.media.imageUrl(m.id, 1024)).build(), m.title, Modifier.fillMaxWidth().heightIn(max = 320.dp).clip(RoundedCornerShape(28.dp)), contentScale = ContentScale.Crop, loading = { SkeletonBox(Modifier.fillMaxWidth().height(200.dp)) }, error = { }) }
-                item { Text(listOfNotNull(Dates.parse(m.date)?.let { Dates.dayShort(it.toLocalDate()) }, m.category).joinToString(" · "), color = cs.onSurfaceVariant) }
+                item { Text(listOfNotNull(Dates.parse(m.from ?: m.created)?.let { Dates.dayShort(it.toLocalDate()) }, m.creator).joinToString(" · "), color = cs.onSurfaceVariant) }
                 school?.languages?.takeIf { it.isNotEmpty() }?.let { l -> item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(lang == null, { lang = null }, { Text("Original") }); l.forEach { FilterChip(lang == it.key, { lang = it.key }, { Text(it.name) }) } } } }
                 m.text?.let { item { Text(it, style = MaterialTheme.typography.bodyLarge) } }
                 item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { act(if (m.liked) "Gefällt mir entfernt" else "Gefällt mir") { app.repos.media.toggleLike(id) } }, shapes = ButtonDefaults.shapes()) { Icon(if (m.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(if (m.liked) "Gefällt dir" else "Gefällt mir") }
-                    if (m.confirmed == false) Button(onClick = { act("Bestätigt") { app.repos.media.confirm(id); app.session.refreshState() } }, shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Bestätigen") } } }
+                    if (m.confirmReceive && !m.confirmed) Button(onClick = { act("Bestätigt") { app.repos.media.confirm(id); app.session.refreshState() } }, shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Bestätigen") } } }
                 if (m.attachments.isNotEmpty()) item { SectionTitle("Anhänge") }
                 items(m.attachments) { a -> AssistChip(onClick = { scope.launch { try { Files.open(ctx, app.api.bytes(app.repos.media.downloadUrl(a.id)), a.name) } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } } }, label = { Text(Urls.safeFileName(a.name)) }, leadingIcon = { Icon(Icons.Rounded.Download, null, Modifier.size(18.dp)) }) }
             }

@@ -8,7 +8,7 @@ import org.junit.Test
 import java.time.LocalDate
 
 class DataTest {
-    private fun msg(id: String, at: String, temp: String? = null) = Message(id, temp, "x", at, null, null, null, null, false, false, emptyList(), false)
+    private fun msg(id: String, at: String, temp: String? = null) = Message(id, temp, "x", at, null, null, null, null, null, false, false, null, null, emptyList(), null)
 
     @Test fun messageStore_dedupes_and_replacesPendingByTempId() {
         val s = MessageStore()
@@ -28,6 +28,22 @@ class DataTest {
         assertEquals(LocalDate.of(2025, 3, 3), day.date)
         assertEquals(listOf(1, 2, 3), day.activeSlots.map { it.index })   // Freistunde bleibt, leere Randslots nicht
         assertEquals(1, day.lessonCount)                                  // ausgefallene Stunde zählt nicht
+    }
+
+    @Test fun schedule_filtersGarbageExtras_acceptsArraySlots_andDetectsChanges() {
+        val j = Json.parseToJsonElement("""{"schedule":{"days":[{"d":"2025-03-03","l":[[{"st":"Mathe","r":"null","x":-1,"room":"202","t":null}],{"e":[{"st":"Deutsch","vertretung":"Müller"}]},[{"st":"Kunst","info":"Entfällt"}]]}]}}""")
+        val d = parseSchedule(j).days.single()
+        val m = d.slots[0].entries.single(); assertEquals("Mathe", m.subject); assertEquals(listOf("room" to "202"), m.extra.filter { it.first == "room" })
+        assertFalse(m.extra.any { it.second == "null" || it.second == "-1" })
+        assertTrue(d.slots[1].entries.single().changed); assertTrue(d.slots[2].entries.single().cancelled)
+    }
+
+    @Test fun deepLinks_parseProfile_andRejectInvalid() {
+        val u = "123e4567-e89b-12d3-a456-426614174000"
+        val p = app.meineschule.expressive.core.DeepLinks.parseProfile("u=$u&n=Max%20Muster&sc=abc")!!
+        assertEquals(u, p.userId); assertEquals("Max Muster", p.name); assertEquals("abc", p.school)
+        assertNull(app.meineschule.expressive.core.DeepLinks.parseProfile("u=nope"))
+        assertNull(app.meineschule.expressive.core.DeepLinks.parseProfile("u=$u&b=http://evil.example")!!.server)
     }
 
     @Test fun hip_sanitizesScripts_andParsesGrades() {

@@ -8,6 +8,7 @@ import androidx.biometric.BiometricPrompt
 import androidx.compose.runtime.*
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import app.meineschule.expressive.core.DeepLinks
 import app.meineschule.expressive.ui.AppRoot
 import app.meineschule.expressive.ui.theme.MsdTheme
 
@@ -19,6 +20,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         if (container.prefs.biometricLock.value) locked.value = true
+        DeepLinks.parse(intent)?.let { container.pendingLink.value = it }
         setContent {
             val app = container
             val mode by app.prefs.mode.collectAsState(); val dyn by app.prefs.dynamicColor.collectAsState(); val seed by app.prefs.seed.collectAsState()
@@ -27,6 +29,8 @@ class MainActivity : FragmentActivity() {
             }
         }
     }
+
+    override fun onNewIntent(intent: android.content.Intent) { super.onNewIntent(intent); setIntent(intent); DeepLinks.parse(intent)?.let { container.pendingLink.value = it } }
 
     override fun onStart() { super.onStart(); container.inForeground = true; if (locked.value) authenticate() }
     override fun onStop() { super.onStop(); container.inForeground = false; if (container.prefs.biometricLock.value) locked.value = true }

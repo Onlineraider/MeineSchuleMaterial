@@ -29,6 +29,10 @@ import java.time.YearMonth
 import java.time.format.TextStyle
 
 private fun CalendarEvent.days(): ClosedRange<LocalDate>? { val s = Dates.date(start) ?: return null; val e = Dates.date(end)?.takeIf { !it.isBefore(s) } ?: s; return s..e }
+internal val CalendarEvent.allDay get() = Dates.parse(start)?.let { it.hour == 0 && it.minute == 0 } == true
+private val CalendarEvent.open get() = confirmReceive && (answer ?: 0) == 0
+private val CalendarEvent.accepted get() = confirmReceive && answer == 1
+private val CalendarEvent.declined get() = confirmReceive && answer == 2
 private fun CalendarEvent.on(d: LocalDate) = days()?.let { d >= it.start && d <= it.endInclusive } == true
 
 @Composable
@@ -53,8 +57,8 @@ fun CalendarScreen() {
                 if (day.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Termine für diesen Tag", "Wähle einen anderen Tag im Kalender.") }
                 itemsIndexed(day) { i, e ->
                     GroupedItem(i, day.size, e.title, supporting = listOfNotNull(if (e.allDay) "Ganztägig" else Dates.parse(e.start)?.let { Dates.time(it) }, e.location, e.category).joinToString(" · "),
-                        leading = { TileIcon(Icons.Rounded.Event, container = if (e.confirmed == false) cs.tertiaryContainer else cs.secondaryContainer) },
-                        trailing = { if (e.confirmed == false) AssistChip(onClick = { detail = e }, label = { Text("Offen") }) else if (e.confirmed == true) Icon(Icons.Rounded.CheckCircle, "Bestätigt", tint = cs.primary) }, onClick = { detail = e })
+                        leading = { TileIcon(Icons.Rounded.Event, container = if (e.open) cs.tertiaryContainer else cs.secondaryContainer) },
+                        trailing = { if (e.open) AssistChip(onClick = { detail = e }, label = { Text("Antwort offen") }) else if (e.accepted) Icon(Icons.Rounded.CheckCircle, "Zugesagt", tint = cs.primary) else if (e.declined) Icon(Icons.Rounded.Cancel, "Abgesagt", tint = cs.error) }, onClick = { detail = e })
                 }
             }
         }
@@ -92,8 +96,13 @@ fun CalendarScreen() {
             if (langs.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(lang == null, { lang = null }, { Text("Original") }); langs.take(4).forEach { l -> FilterChip(lang == l.key, { lang = l.key }, { Text(l.name) }) } }
             if (detail.state is UiState.Loading) SkeletonBox(Modifier.fillMaxWidth().height(60.dp)) else d.text?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             err?.let { Text(it, color = cs.error) }
-            if (d.confirmed == false) LoadingButton("Bestätigen", busy, { busy = true; scope.launch { try { app.repos.calendar.confirm(e.id, 1); onConfirmed() } catch (x: Throwable) { err = x.asApi().userText } finally { busy = false } } }, Modifier.fillMaxWidth(), icon = Icons.Rounded.Check)
-            else if (d.confirmed == true) AssistChip(onClick = {}, label = { Text("Du hast diesen Termin bestätigt") }, leadingIcon = { Icon(Icons.Rounded.CheckCircle, null) })
+            if (d.confirmReceive) {
+                fun answer(a: Int) { busy = true; scope.launch { try { app.repos.calendar.confirm(e.id, a); onConfirmed() } catch (x: Throwable) { err = x.asApi().userText } finally { busy = false } } }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                    if (d.answer == 1) FilledTonalButton({ answer(1) }, Modifier.weight(1f), enabled = !busy) { Icon(Icons.Rounded.CheckCircle, null); Spacer(Modifier.width(6.dp)); Text("Zugesagt") } else Button({ answer(1) }, Modifier.weight(1f), enabled = !busy) { Icon(Icons.Rounded.Check, null); Spacer(Modifier.width(6.dp)); Text("Zusagen") }
+                    if (d.answer == 2) FilledTonalButton({ answer(2) }, Modifier.weight(1f), enabled = !busy) { Icon(Icons.Rounded.Cancel, null); Spacer(Modifier.width(6.dp)); Text("Abgesagt") } else OutlinedButton({ answer(2) }, Modifier.weight(1f), enabled = !busy) { Icon(Icons.Rounded.Close, null); Spacer(Modifier.width(6.dp)); Text("Absagen") }
+                }
+            }
         }
     }
 }

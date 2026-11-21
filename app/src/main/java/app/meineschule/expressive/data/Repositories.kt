@@ -8,6 +8,8 @@ import java.time.LocalDate
 
 /** Repositories: dünne Wrapper um die in der Doku belegten Endpunkte (siehe docs/API-MAPPING.md). Nichts erfunden. */
 class Repos(private val api: ApiClient, private val portal: PortalClient) {
+    /** Eigene User-ID (für „meine Reaktion“); wird von Session gesetzt. */
+    @Volatile var meId: String? = null
     private fun q(vararg p: Pair<String, String?>): String = p.filter { !it.second.isNullOrEmpty() }.joinToString("&") { "${it.first}=${Urls.seg(it.second!!)}" }.let { if (it.isEmpty()) "" else "?$it" }
     private fun seg(s: String) = Urls.seg(s)
 
@@ -52,35 +54,42 @@ class Repos(private val api: ApiClient, private val portal: PortalClient) {
     inner class MessengerRepo {
         suspend fun index(search: String? = null, category: String? = null): List<Chat> = J.list(api.get(api.scoped("Messenger/Index${q("searchquery" to search, "category" to category)}"))).map { it.toChat() }
         suspend fun categories(): List<IdName> = J.list(api.get(api.scoped("Messenger/Categories"))).map { it.toIdName() }
-        suspend fun create(name: String?, recipients: List<String>): String? {
-            val body = buildJsonObject { put("useExisting", true); name?.takeIf { it.isNotBlank() }?.let { put("name", it) }; put("recipients", JsonArray(recipients.map { JsonPrimitive(it) })) } // Keys unverändert aus der API
+        /** [recipients] im Serverformat `key=Anzeigename` (wie die Original-App), z. B. `U:USER:{id}=Max Muster`. */
+        suspend fun create(name: String?, recipients: List<String>, reuse: Boolean = true, authorsLimited: Boolean = false): String? {
+            val body = buildJsonObject { put("recipients", JsonArray(recipients.map { JsonPrimitive(it) })); put("name", name?.takeIf { it.isNotBlank() }?.let { JsonPrimitive(it) } ?: JsonNull); put("useExisting", reuse); put("authorsLimited", authorsLimited) }
             return J(api.post(api.scoped("Messenger/Chat/Create"), body)).str("id", "chatId")
+        }
+        suspend fun editData(id: String): J = J(api.get(api.scoped("Messenger/Chat/${seg(id)}/Edit")))
+        suspend fun editSave(id: String, recipients: List<String>, name: String?, authorsLimited: Boolean, authors: List<JsonElement>) {
+            api.patch(api.scoped("Messenger/Chat/${seg(id)}/Edit"), buildJsonObject { put("id", id); put("recipients", JsonArray(recipients.map { JsonPrimitive(it) })); put("name", name?.takeIf { it.isNotBlank() }?.let { JsonPrimitive(it) } ?: JsonNull); put("authorsLimited", authorsLimited); put("authors", JsonArray(if (authorsLimited) authors else emptyList())) })
         }
         suspend fun remove(id: String) { api.delete(api.scoped("Messenger/Chat/${seg(id)}")) }
         suspend fun mute(id: String, v: Boolean) { api.post(api.scoped("Messenger/Chat/${seg(id)}/Mute"), buildJsonObject { put("isSilent", v) }) }
         suspend fun pin(id: String, v: Boolean) { api.post(api.scoped("Messenger/Chat/${seg(id)}/Pin"), buildJsonObject { put("isPinned", v) }) }
-        suspend fun markUnread(id: String) { api.post(api.scoped("Messenger/Chat/${seg(id)}/MarkAsUnread"), JsonNull) }
+        suspend fun markUnread(id: String) { api.post(api.scoped("Messenger/Chat/${seg(id)}/MarkAsUnread"), buildJsonObject {}) }
         suspend fun chat(id: String): Chat = J(api.get(api.scoped("Messenger/Chat/${seg(id)}"))).toChat()
+        suspend fun deleteChat(id: String) { api.delete(api.scoped("Messenger/Chat/${seg(id)}")) }
         suspend fun info(id: String): J = J(api.get(api.scoped("Messenger/Chat/${seg(id)}/Info")))
-        suspend fun items(id: String, page: Int = 1, size: Int = 25): List<Message> = J.list(api.get(api.scoped("Messenger/Chat/${seg(id)}/Items?page=$page&pagesize=$size"))).map { it.toMessage() }
-        suspend fun before(id: String, msgId: String): List<Message> = J.list(api.get(api.scoped("Messenger/Chat/${seg(id)}/ItemsBefore/${seg(msgId)}"))).map { it.toMessage() }
-        suspend fun after(id: String, msgId: String): List<Message> = J.list(api.get(api.scoped("Messenger/Chat/${seg(id)}/ItemsAfter/${seg(msgId)}?maxitems=1000"))).map { it.toMessage() }
-        suspend fun send(chatId: String, content: String, tempId: String, replyTo: String? = null, forwarded: String? = null): Message =
-            J(api.post(api.scoped("Messenger/Chat/${seg(chatId)}/Create"), buildJsonObject { put("content", content); put("tempId", tempId); replyTo?.let { put("replyToMessageId", it) }; forwarded?.let { put("forwardedMessageId", it) } })).toMessage()
+        suspend fun items(id: String, page: Int = 1, size: Int = 30): List<Message> = J.list(api.get(api.scoped("Messenger/Chat/${seg(id)}/Items?page=$page&pagesize=$size"))).map { it.toMessage(meId) }
+        suspend fun before(id: String, msgId: String): List<Message> = J.list(api.get(api.scoped("Messenger/Chat/${seg(id)}/ItemsBefore/${seg(msgId)}"))).map { it.toMessage(meId) }
+        suspend fun after(id: String, msgId: String): List<Message> = J.list(api.get(api.scoped("Messenger/Chat/${seg(id)}/ItemsAfter/${seg(msgId)}?maxitems=1000"))).map { it.toMessage(meId) }
+        /** `tempId` nur mitsenden, wenn vorher eine Datei per [upload] hochgeladen wurde (wie die Original-App). */
+        suspend fun send(chatId: String, content: String, tempId: String? = null, replyTo: String? = null): Message =
+            J(api.post(api.scoped("Messenger/Chat/${seg(chatId)}/Create"), buildJsonObject { put("content", content); tempId?.let { put("tempId", it) }; replyTo?.let { put("replyToMessageId", it) } })).toMessage(meId)
         suspend fun upload(chatId: String, tempId: String, bytes: ByteArray, mime: String, name: String) { api.upload(api.scoped("Messenger/Chat/${seg(chatId)}/Upload/${seg(tempId)}"), bytes, mime, name) }
         suspend fun forward(chatId: String, messageId: String): Message = J(api.post(api.scoped("Messenger/Chat/${seg(chatId)}/Forward"), JsonPrimitive(messageId))).toMessage()
         suspend fun delete(chatId: String, ids: List<String>) { api.post(api.scoped("Messenger/Chat/${seg(chatId)}/Delete"), buildJsonObject { put("ids", JsonArray(ids.map { JsonPrimitive(it) })) }) }
         suspend fun report(chatId: String, messageId: String, reason: String) { api.post(api.scoped("Messenger/Chat/${seg(chatId)}/Report/${seg(messageId)}"), buildJsonObject { put("reason", reason) }) }
-        suspend fun markRead(chatId: String, ids: List<String>) { api.post(api.scoped("Messenger/Chat/${seg(chatId)}/MarkAsRead"), buildJsonObject { put("ids", JsonArray(ids.map { JsonPrimitive(it) })) }) }
-        suspend fun vote(chatId: String, messageId: String, vote: JsonElement) { api.post(api.scoped("Messenger/Chat/${seg(chatId)}/Vote/${seg(messageId)}"), buildJsonObject { put("vote", vote) }) }
-        fun imageUrl(chatId: String, attId: String, w: Int = 512) = api.web("Messenger/Chat/${seg(chatId)}/image/${seg(attId)}?w=$w")
+        suspend fun markRead(chatId: String, ids: List<String>) { api.post(api.scoped("Messenger/Chat/${seg(chatId)}/MarkAsRead"), buildJsonObject { if (ids.isNotEmpty()) put("ids", JsonArray(ids.map { JsonPrimitive(it) })) }) }
+        /** Emoji-Reaktion setzen; `null` entfernt die eigene Reaktion. */
+        suspend fun react(chatId: String, messageId: String, emoji: String?) { api.post(api.scoped("Messenger/Chat/${seg(chatId)}/Vote/${seg(messageId)}"), buildJsonObject { put("vote", emoji?.let { JsonPrimitive(it) } ?: JsonNull) }) }
         fun downloadUrl(chatId: String, attId: String) = api.web("Messenger/Chat/${seg(chatId)}/Download/${seg(attId)}")
     }
 
     inner class CalendarRepo {
         suspend fun index(): List<CalendarEvent> = J.list(api.get(api.scoped("Calendar/Index"))).map { it.toCalendar() }
         suspend fun detail(id: String, lang: String?): CalendarEvent = J(api.get(api.scoped("Calendar/Detail/${seg(id)}${q("lang" to lang)}"))).toCalendar()
-        /** `answer`: Zahlenwert laut API (Bedeutung der Werte ist nicht dokumentiert: 1 = zusagen, 0 = absagen ist eine Annahme, siehe README). */
+        /** `answer`: 1 = Zusagen, 2 = Absagen, 0 = Keine Antwort (aus dem Web-Client). */
         suspend fun confirm(id: String, answer: Int) { api.post(api.scoped("Calendar/Confirm/${seg(id)}"), buildJsonObject { put("answer", answer) }) }
     }
 
