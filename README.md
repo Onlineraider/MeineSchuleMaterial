@@ -10,7 +10,7 @@ Inoffizieller, moderner Client für **MeineSchule.digital**, gebaut ausschließl
    ```properties
    msd.origin=https://meineschule.digital   # Standard, nur ändern wenn nötig
    ```
-   Beides ist nötig: `origin` ist die Basis-URL der Plattform (nur **https**), `appId` die für Token-Aufrufe erforderliche App-Kennung (laut Doku verlangt, aber nicht öffentlich dokumentiert → du musst sie selbst liefern).
+   `origin` ist die Basis-URL der Plattform (nur **https**). Die App-ID erzeugt die App selbst pro Installation (`MSDAPP:<uuid>`).
 3. Gradle-Wrapper erzeugen, falls nicht vorhanden: `gradle wrapper` (oder Android Studio synchronisieren lassen).
 4. Starten: `./gradlew installDebug`, Tests: `./gradlew testDebugUnitTest`.
 5. Optional: Schrift *Roboto Flex* als `res/font/roboto_flex.ttf` ablegen und in `ui/theme/Theme.kt` verwenden; ohne Datei wird die Systemschrift genutzt.
