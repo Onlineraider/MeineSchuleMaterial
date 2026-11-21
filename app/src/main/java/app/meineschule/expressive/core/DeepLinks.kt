@@ -26,7 +26,7 @@ object DeepLinks {
     }
 
     fun parseProfile(query: String): ProfileLink? {
-        val p = query.split('&').mapNotNull { it.split('=', limit = 2).takeIf { kv -> kv.size == 2 }?.let { kv -> kv[0] to Uri.decode(kv[1].replace('+', ' ')) } }.toMap()
+        val p = query.split('&').mapNotNull { it.split('=', limit = 2).takeIf { kv -> kv.size == 2 }?.let { kv -> kv[0] to runCatching { java.net.URLDecoder.decode(kv[1], "UTF-8") }.getOrDefault(kv[1]) } }.toMap()
         val u = p["u"] ?: return null; if (!UUID.matches(u)) return null
         val b = p["b"]?.takeIf { it.startsWith("https://") }?.trimEnd('/')
         return ProfileLink(u, (p["n"] ?: "").take(120), b, p["sc"], p["sn"]?.take(120))

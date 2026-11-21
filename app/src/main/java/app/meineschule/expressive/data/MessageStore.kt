@@ -16,8 +16,8 @@ class MessageStore {
     fun merge(msgs: List<Message>): Int {
         var added = 0
         for (m in msgs) {
-            
             if (m.id.isBlank()) continue
+            m.tempId?.let { byId.remove("tmp:$it") } // lokale Platzhalter durch die echte Nachricht ersetzen
             if (!byId.containsKey(m.id)) added++
             byId[m.id] = m.copy(pending = false, failed = false)
         }
