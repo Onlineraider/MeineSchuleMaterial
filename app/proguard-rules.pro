@@ -1,0 +1,5 @@
+-keep class com.microsoft.signalr.** { *; }
+-dontwarn org.slf4j.**
+-dontwarn com.microsoft.signalr.**
+-keepattributes *Annotation*, InnerClasses
+-dontwarn okhttp3.internal.platform.**
