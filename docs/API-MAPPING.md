@@ -20,7 +20,16 @@ Basis: `{origin}/Api/v1.0`; global `App/App/…`, schulbezogen `App/{school}/…
 | Hinweise | `School/State` |
 
 ## Nicht belegt → nicht umgesetzt
-Push-Registrierung (DeviceInstallation), Kalender ablehnen, Umfrage abstimmen (Modell unklar), Erstellen von Kalender/Protokoll/Medien, Bearbeiten von Schülereigenschaften in der App, Stundenplan-Zeiten/Räume.
+Push-Registrierung (DeviceInstallation), Erstellen von Kalender/Protokoll/Medien, Bearbeiten von Schülereigenschaften in der App, Stundenplan-Zeiten/Räume.
 
 ## Annahmen (bei echten Antworten prüfen)
 Feldnamen undokumentierter Modelle (tolerant gemappt); Chat-Upload via `Upload/{tempId}` + `tempId` beim Senden; Empfänger als Schlüssel-Strings; `Items` Seite 1 = neueste; `appId` muss vom Nutzer geliefert werden.
+
+
+## Korrekturen (aus dem Web-Client abgeleitet)
+- App-ID wird pro Installation als `MSDAPP:<uuid>` erzeugt (kein Secret/Build-Parameter).
+- `Messenger/Chat/{id}/Vote/{msgId}` = Emoji-Reaktion `{vote: emoji|null}`, keine Umfrage.
+- Chat-Anhänge: `hasAttachment/attachmentId/attachmentName`, Download über `Chat/{id}/Download/{attId}`; `tempId` nur nach `Upload/{tempId}`.
+- Empfänger: `key=Anzeigename` (`U:USER:…`, `P:STUDENT|TEACHER|PARENT:…`, `SG:…`, `SC:…`); Chat anlegen `{recipients,name,useExisting,authorsLimited}`.
+- Kalender-Antwort: 1 = zusagen, 2 = absagen, 0 = keine Antwort.
+- Stundenplan-Slots sind Array oder `{e:[…]}`; Extras mit `null`/`-1` werden ignoriert.

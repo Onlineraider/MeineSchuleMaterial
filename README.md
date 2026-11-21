@@ -9,7 +9,6 @@ Inoffizieller, moderner Client für **MeineSchule.digital**, gebaut ausschließl
 2. In `local.properties` (nicht einchecken!) eintragen:
    ```properties
    msd.origin=https://meineschule.digital   # Standard, nur ändern wenn nötig
-   msd.appId=DEINE-APP-ID
    ```
    Beides ist nötig: `origin` ist die Basis-URL der Plattform (nur **https**), `appId` die für Token-Aufrufe erforderliche App-Kennung (laut Doku verlangt, aber nicht öffentlich dokumentiert → du musst sie selbst liefern).
 3. Gradle-Wrapper erzeugen, falls nicht vorhanden: `gradle wrapper` (oder Android Studio synchronisieren lassen).
@@ -35,7 +34,7 @@ Ablauf aus JWT-`exp` (sonst `expireIn`-Heuristik), proaktive Erneuerung ~2 min v
 ## Bekannte Einschränkungen / Annahmen
 Siehe `docs/API-MAPPING.md`. Kurz:
 - Nicht dokumentierte Modelle (Chat, Nachricht, Kalender, Medien, Protokoll …) werden tolerant gemappt (alternative Feldnamen); echte Antworten können Anpassungen in `data/Models.kt` erfordern.
-- Kalender: nur Zusage (`answer=1`) umgesetzt; Ablehnen nicht belegt. Umfragen: Anzeige ja, Abstimmen nicht umgesetzt.
+- Kalender: Zusagen (`answer=1`) und Absagen (`answer=2`). Chat-„Vote“ sind Emoji-Reaktionen (keine Umfragen); Medien in Chats sind Anhänge (`Download/{attId}`). Profil-/Kontakt-Links der Web-App (`…/#/profil?u=…&n=…`, `#/chat/…`) und das Android-Teilen-Menü werden unterstützt.
 - Chat-Anhänge: Upload an `Upload/{tempId}` und anschließendes Senden mit `tempId` ist eine **Annahme**.
 - Stundenplan: keine Uhrzeiten/Räume/Lehrkräfte in der dokumentierten Antwort; der Slot‑Index ist nicht die Stundennummer.
 - Hausaufgaben-Fälligkeit: „zum TT.MM.JJJJ“ aus dem Text; sonst aus dem Folgeunterricht **abgeleitet und als „abgeleitet“ markiert**.
