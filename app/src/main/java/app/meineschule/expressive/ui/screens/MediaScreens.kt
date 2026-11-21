@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.screens
 
+import app.meineschule.expressive.core.Urls
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -80,7 +81,7 @@ fun MediaDetailScreen(id: String, onBack: () -> Unit) {
                     FilledTonalButton(onClick = { act(if (m.liked) "Gefällt mir entfernt" else "Gefällt mir") { app.repos.media.toggleLike(id) } }, shapes = ButtonDefaults.shapes()) { Icon(if (m.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(if (m.liked) "Gefällt dir" else "Gefällt mir") }
                     if (m.confirmed == false) Button(onClick = { act("Bestätigt") { app.repos.media.confirm(id); app.session.refreshState() } }, shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Bestätigen") } } }
                 if (m.attachments.isNotEmpty()) item { SectionTitle("Anhänge") }
-                items(m.attachments) { a -> AssistChip(onClick = { scope.launch { try { Files.open(ctx, app.api.bytes(app.repos.media.downloadUrl(a.id)), a.name) } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } } }, label = { Text(app.meineschule.expressive.core.Urls.safeFileName(a.name)) }, leadingIcon = { Icon(Icons.Rounded.Download, null, Modifier.size(18.dp)) }) }
+                items(m.attachments) { a -> AssistChip(onClick = { scope.launch { try { Files.open(ctx, app.api.bytes(app.repos.media.downloadUrl(a.id)), a.name) } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } } }, label = { Text(Urls.safeFileName(a.name)) }, leadingIcon = { Icon(Icons.Rounded.Download, null, Modifier.size(18.dp)) }) }
             }
         }
     }

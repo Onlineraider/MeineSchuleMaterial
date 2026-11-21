@@ -14,6 +14,7 @@ signalr = "8.0.0"
 biometric = "1.1.0"
 work = "2.10.5"
 coreKtx = "1.16.0"
+material3 = "1.5.0"
 junit = "4.13.2"
 
 [libraries]
@@ -26,9 +27,9 @@ compose-bom = { module = "androidx.compose:compose-bom", version.ref = "composeB
 compose-ui = { module = "androidx.compose.ui:ui" }
 compose-ui-tooling-preview = { module = "androidx.compose.ui:ui-tooling-preview" }
 compose-ui-tooling = { module = "androidx.compose.ui:ui-tooling" }
-compose-material3 = { module = "androidx.compose.material3:material3" }
-compose-material3-adaptive-nav-suite = { module = "androidx.compose.material3:material3-adaptive-navigation-suite" }
-compose-material3-window-size = { module = "androidx.compose.material3:material3-window-size-class" }
+compose-material3 = { module = "androidx.compose.material3:material3", version.ref = "material3" }
+compose-material3-adaptive-nav-suite = { module = "androidx.compose.material3:material3-adaptive-navigation-suite", version.ref = "material3" }
+compose-material3-window-size = { module = "androidx.compose.material3:material3-window-size-class", version.ref = "material3" }
 compose-icons-extended = { module = "androidx.compose.material:material-icons-extended" }
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }

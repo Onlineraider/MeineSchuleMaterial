@@ -3,6 +3,7 @@ package app.meineschule.expressive.net
 import app.meineschule.expressive.core.*
 import kotlinx.serialization.json.*
 import okhttp3.*
+import okhttp3.HttpUrl.Companion.toHttpUrl
 import java.io.IOException
 import java.time.LocalDate
 import java.util.concurrent.ConcurrentHashMap

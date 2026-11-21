@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.screens
 
+import app.meineschule.expressive.ui.theme.MsdShapes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -36,7 +37,7 @@ fun AbsenceScreen(onBack: () -> Unit) {
     val cats = (index.state as? UiState.Ready)?.data?.categories.orEmpty()
 
     PageScaffold("Abwesenheiten", student?.name, onBack, snackbarHost = { SnackbarHost(snack) },
-        floatingActionButton = { if (school?.canCreateAbsences == true && student != null) ExtendedFloatingActionButton(onClick = { creating = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Abwesenheit melden") }, shape = app.meineschule.expressive.ui.theme.MsdShapes.Fab) }) { pad ->
+        floatingActionButton = { if (school?.canCreateAbsences == true && student != null) ExtendedFloatingActionButton(onClick = { creating = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Abwesenheit melden") }, shape = MsdShapes.Fab) }) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding())) {
             if (students.size > 1) Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == idx, { idx = i }, { Text(s.name) }) } }
             StateHost(reports, Modifier.weight(1f), isEmpty = { it.isEmpty() }, empty = { EmptyState(Icons.Rounded.EventAvailable, "Keine Abwesenheitsmeldungen", "Hier erscheinen gemeldete Abwesenheiten.") }) { list ->

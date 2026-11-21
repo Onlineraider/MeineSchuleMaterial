@@ -32,7 +32,7 @@ object HipParser {
         val doc = Jsoup.parseBodyFragment(sanitize(html))
         val grades = mutableListOf<Grade>(); val absences = mutableListOf<HipAbsence>(); val remarks = mutableListOf<Remark>(); val lessons = mutableListOf<HipLesson>()
         var section: String? = null; var subject: String? = null; var recognized = false
-        val used = HashSet<Element>()
+        val used: MutableSet<Element> = HashSet()
         for (el in doc.body().allElements) {
             val tag = el.tagName()
             if (tag.matches(Regex("h[1-6]"))) {
