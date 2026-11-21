@@ -57,7 +57,8 @@ internal fun parseEntry(e: JsonElement): LessonEntry {
 private fun slotTime(slot: JsonElement): TimeRange? {
     val o = slot as? JsonObject ?: return null
     for ((k, v) in o) { if (k == "e" || v !is JsonPrimitive || !v.isString) continue
-        TIME.find(v.content)?.let { m -> fun p(x: String) = x.padStart(2, '0'); return TimeRange("${p(m.groupValues[1])}:${m.groupValues[2]}", "${p(m.groupValues[3])}:${m.groupValues[4]}") } }
+        val m = TIME.find(v.content) ?: continue
+        return TimeRange(m.groupValues[1].padStart(2, '0') + ":" + m.groupValues[2], m.groupValues[3].padStart(2, '0') + ":" + m.groupValues[4]) }
     return null
 }
 

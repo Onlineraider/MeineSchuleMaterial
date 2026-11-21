@@ -34,7 +34,7 @@ data class Message(
     val pending: Boolean = false, val failed: Boolean = false,
 ) {
     val hasAttachment: Boolean get() = !attachmentId.isNullOrBlank()
-    val attachmentIsImage: Boolean get() = attachmentName?.matches(Regex(".*\.(jpe?g|png|gif|webp|heic|bmp)$", RegexOption.IGNORE_CASE)) == true
+    val attachmentIsImage: Boolean get() = attachmentName?.matches(Regex(".*\\.(jpe?g|png|gif|webp|heic|bmp)$", RegexOption.IGNORE_CASE)) == true
 }
 data class CalendarEvent(val id: String, val title: String, val start: String?, val end: String?, val created: String?, val text: String?, val location: String?, val category: String?, val confirmReceive: Boolean, val answer: Int?)
 data class MediaItem(val id: String, val title: String, val creator: String?, val from: String?, val to: String?, val created: String?, val text: String?, val liked: Boolean, val likeCount: Int, val confirmReceive: Boolean, val confirmed: Boolean, val attachments: List<Attachment>)
