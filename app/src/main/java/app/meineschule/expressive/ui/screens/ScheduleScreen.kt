@@ -65,7 +65,7 @@ fun ScheduleScreen() {
             Box(Modifier.padding(horizontal = 16.dp)) {
                 OutlinedButton({ pickerOpen = true }, Modifier.fillMaxWidth()) { Icon(Icons.Rounded.Groups, null); Spacer(Modifier.width(8.dp)); Text(label, Modifier.weight(1f)); Icon(Icons.Rounded.ArrowDropDown, null) }
                 DropdownMenu(pickerOpen, { pickerOpen = false }) {
-                    fun item(t: String, sel: Boolean, indent: Boolean, onClick: () -> Unit) = DropdownMenuItem(text = { Text(t, Modifier.padding(start = if (indent) 12.dp else 0.dp)) }, onClick = { pickerOpen = false; onClick() }, trailingIcon = { RadioButton(sel, null) })
+                    @Composable fun item(t: String, sel: Boolean, indent: Boolean, onClick: () -> Unit) = DropdownMenuItem(text = { Text(t, Modifier.padding(start = if (indent) 12.dp else 0.dp)) }, onClick = { pickerOpen = false; onClick() }, trailingIcon = { RadioButton(sel, null) })
                     item("Vertretungen", target == null, false) { target = null }
                     if (students.isNotEmpty()) { Text("Schüler", Modifier.padding(16.dp, 8.dp), style = MaterialTheme.typography.labelLarge); students.forEach { s -> item(s.name, target == "S" to s.id, true) { target = "S" to s.id } } }
                     if (cl.isNotEmpty()) { Text("Klassen", Modifier.padding(16.dp, 8.dp), style = MaterialTheme.typography.labelLarge); cl.forEach { c -> item(c.name, target == "C" to c.id, true) { target = "C" to c.id } } }
