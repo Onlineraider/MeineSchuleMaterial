@@ -1,6 +1,8 @@
 package app.meineschule.expressive.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -20,43 +22,52 @@ import app.meineschule.expressive.data.*
 import app.meineschule.expressive.ui.components.*
 import java.time.LocalDate
 
-private val tabs = listOf("Noten", "Fehlzeiten", "Bemerkungen", "Hausaufgaben")
-
 /** Home.InfoPoint: serverseitiges HTML wird bereinigt (Jsoup-Safelist) und nativ dargestellt – nie in einer WebView. */
 @Composable
 fun HipScreen(onBack: () -> Unit) {
     val app = LocalApp.current; val gen by app.session.generation.collectAsState(); val school by app.session.school.collectAsState()
-    val students = school?.students.orEmpty(); var idx by remember { mutableIntStateOf(0) }; var tab by remember { mutableIntStateOf(0) }
+    val students = school?.students.orEmpty(); var idx by remember { mutableIntStateOf(0) }; var tab by remember { mutableStateOf(HipClass.Abs) }
     val student = students.getOrNull(idx)
-    val loader = rememberLoader(gen, student?.id, school != null) { if (student == null) HipData(emptyList(), emptyList(), emptyList(), emptyList(), emptyList(), false) else app.repos.hip.student(student.id) }
-    // Optionale, clientseitige Fristableitung aus dem Stundenplan – wird in der UI ausdrücklich als „ermittelt“ gekennzeichnet.
-    val sched = rememberLoader(gen, student?.id) { runCatching { app.repos.schedule(LocalDate.now(), student?.id) }.getOrNull() }
+    val loader = rememberLoader(gen, student?.id, school != null) { if (student == null) HipData(emptyList(), emptyList()) else app.repos.hip.student(student.id) }
     PageScaffold(title = "Home.InfoPoint", subtitle = student?.name, onBack = onBack) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding())) {
-            if (students.size > 1) Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == idx, { idx = i }, { Text(s.name) }) } }
-            PrimaryScrollableTabRow(tab, edgePadding = 8.dp, containerColor = MaterialTheme.colorScheme.surface) { tabs.forEachIndexed { i, t -> Tab(tab == i, { tab = i }, text = { Text(t) }) } }
+            if (students.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == idx, { idx = i }, { Text(s.name) }) } }
             StateHost(loader, Modifier.weight(1f), isEmpty = { it.isEmpty }, empty = { EmptyState(Icons.Rounded.Grade, "Keine Informationen verfügbar", "Für diese Person liegen im Home.InfoPoint aktuell keine Daten vor.") }) { d ->
-                LazyColumn(contentPadding = PaddingValues(vertical = 12.dp, horizontal = 0.dp)) {
-                    when (tab) {
-                        0 -> if (d.grades.isEmpty()) item { EmptyState(Icons.Rounded.Grade, "Keine Noten verfügbar", null) } else d.grades.groupBy { it.subject }.forEach { (subj, gs) ->
-                            item { SectionTitle(subj) }
-                            itemsIndexed(gs) { i, g -> GroupedItem(i, gs.size, g.remark.ifBlank { "Bewertung" }, supporting = listOf(g.date, g.information).filter { it.isNotBlank() }.joinToString(" · "), trailing = { GradeBadge(g.value) }) }
-                        }
-                        1 -> if (d.absences.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Fehlzeiten", null) } else itemsIndexed(d.absences) { i, a -> GroupedItem(i, d.absences.size, a.date, supporting = a.remark.ifBlank { "Keine Begründung" }, leading = { TileIcon(Icons.Rounded.EventBusy) }) }
-                        2 -> if (d.remarks.isEmpty()) item { EmptyState(Icons.Rounded.Notes, "Keine Bemerkungen", null) } else itemsIndexed(d.remarks) { i, r -> GroupedItem(i, d.remarks.size, r.text, supporting = listOf(r.date, r.subject, r.type, r.author).filter { it.isNotBlank() }.joinToString(" · "), leading = { TileIcon(Icons.Rounded.Notes) }) }
-                        else -> {
-                            val days = (sched.state as? UiState.Ready)?.data?.days.orEmpty()
-                            if (d.lessons.isEmpty()) item { EmptyState(Icons.Rounded.Assignment, "Keine Hausaufgaben", null) } else itemsIndexed(d.lessons) { i, l ->
-                                val due = l.due ?: HipParser.inferDue(l, days)
-                                GroupedItem(i, d.lessons.size, "${l.subject} · ${l.date}", supporting = buildString { append(l.homework.ifBlank { "Keine Aufgabe eingetragen" }); due?.let { append("\nFällig: ${Dates.dayShort(it.date)}${if (it.source == DueSource.Inferred) " (ermittelt aus Stundenplan)" else ""}") } }, leading = { TileIcon(Icons.Rounded.Assignment) })
+                val kinds = (listOf(HipClass.Abs, HipClass.Rem) + HipClass.entries.drop(2).filter { c -> d.of(c).isNotEmpty() }).let { if (d.text.isNotEmpty()) it + HipClass.Oth else it }.distinct()
+                val cur = if (tab in kinds) tab else kinds.first()
+                Column {
+                    PrimaryScrollableTabRow(kinds.indexOf(cur), edgePadding = 8.dp, containerColor = MaterialTheme.colorScheme.surface) { kinds.forEach { k -> Tab(cur == k, { tab = k }, text = { Text(k.label) }) } }
+                    LazyColumn(contentPadding = PaddingValues(vertical = 12.dp)) {
+                        if (cur == HipClass.Abs) {
+                            val a = HipParser.absSummary(d.of(HipClass.Abs))
+                            item { Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Stat("${a.daysExcused}", "Fehltage entschuldigt", Modifier.weight(1f)); Stat("${a.daysUnexcused}", "Fehltage unentschuldigt", Modifier.weight(1f)) } }
+                            item { Spacer(Modifier.height(8.dp)); Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Stat("${a.hoursExcused}", "Fehlstunden entschuldigt", Modifier.weight(1f)); Stat("${a.hoursUnexcused}", "Fehlstunden unentschuldigt", Modifier.weight(1f)) } }
+                            item { SectionTitle("Fehlzeiten") }
+                            if (a.entries.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Fehlzeiten eingetragen", null) } else itemsIndexed(a.entries) { i, e -> GroupedItem(i, a.entries.size, e.day, supporting = e.text.ifBlank { null }, leading = { TileIcon(Icons.Rounded.EventBusy) }) }
+                        } else {
+                            val ts = d.of(cur)
+                            if (ts.isEmpty() && d.text.isEmpty()) item { EmptyState(Icons.Rounded.Notes, "Keine Einträge", null) }
+                            ts.forEach { t ->
+                                if (t.title.isNotBlank()) item { SectionTitle(t.title) }
+                                itemsIndexed(t.rows) { i, r ->
+                                    val gi = if (cur == HipClass.Grd) t.head.indexOfFirst { Regex("note|zensur|bewertung", RegexOption.IGNORE_CASE).containsMatchIn(it) } else -1
+                                    val cells = r.indices.filter { it != gi && r[it].isNotBlank() }
+                                    GroupedItem(i, t.rows.size, cells.firstOrNull()?.let { r[it] } ?: "–", supporting = cells.drop(1).joinToString("\n") { c -> t.head.getOrNull(c)?.takeIf { it.isNotBlank() }?.let { h -> "$h: ${r[c]}" } ?: r[c] }.ifBlank { null },
+                                        trailing = if (gi >= 0 && r.getOrNull(gi)?.isNotBlank() == true) ({ GradeBadge(r[gi]) }) else null)
+                                }
                             }
+                            if (cur == HipClass.Oth && d.text.isNotEmpty()) { item { SectionTitle("Weitere Informationen") }; itemsIndexed(d.text) { i, t -> GroupedItem(i, d.text.size, t) } }
                         }
                     }
-                    if (d.otherText.isNotEmpty()) { item { SectionTitle("Weitere Informationen") }; itemsIndexed(d.otherText) { i, t -> GroupedItem(i, d.otherText.size, t) } }
                 }
             }
         }
     }
+}
+
+@Composable private fun Stat(n: String, label: String, modifier: Modifier) {
+    val cs = MaterialTheme.colorScheme
+    Column(modifier.clip(RoundedCornerShape(24.dp)).background(cs.secondaryContainer).padding(16.dp)) { Text(n, style = MaterialTheme.typography.headlineMedium, color = cs.onSecondaryContainer); Text(label, style = MaterialTheme.typography.labelMedium, color = cs.onSecondaryContainer) }
 }
 
 @Composable private fun GradeBadge(value: String) { val cs = MaterialTheme.colorScheme; Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(cs.primaryContainer), contentAlignment = Alignment.Center) { Text(value, style = MaterialTheme.typography.titleLarge, color = cs.onPrimaryContainer) } }

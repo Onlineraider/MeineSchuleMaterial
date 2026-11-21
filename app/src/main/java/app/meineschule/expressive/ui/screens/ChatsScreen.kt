@@ -41,8 +41,8 @@ fun ChatsScreen(nav: NavHostController) {
     LaunchedEffect(Unit) { app.hub.events.collect { loader.reload() } }
     fun act(msg: String? = null, block: suspend () -> Unit) = scope.launch { try { block(); msg?.let { snack.showSnackbar(it) }; loader.reload() } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } }
 
-    PageScaffold(title = "Nachrichten", snackbarHost = { SnackbarHost(snack) },
-        floatingActionButton = { if (school?.canUseMessenger != false) ExtendedFloatingActionButton(onClick = { nav.navigate("newchat") }, shape = MsdShapes.Fab, containerColor = cs.primaryContainer, contentColor = cs.onPrimaryContainer, icon = { Icon(Icons.Rounded.Edit, null) }, text = { Text("Neuer Chat") }) },
+    PageScaffold(title = "Nachrichten", snackbarHost = { SnackbarHost(snack) }, actions = { IconButton(onClick = { nav.navigate("newchat") }) { Icon(Icons.Rounded.Add, "Neuer Chat") } },
+        floatingActionButton = { ExtendedFloatingActionButton(onClick = { nav.navigate("newchat") }, shape = MsdShapes.Fab, containerColor = cs.primaryContainer, contentColor = cs.onPrimaryContainer, icon = { Icon(Icons.Rounded.Edit, null) }, text = { Text("Neuer Chat") }) },
     ) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding())) {
             OutlinedTextField(query, { query = it }, Modifier.fillMaxWidth().padding(horizontal = 16.dp), placeholder = { Text("Chats durchsuchen") }, singleLine = true, shape = CircleShape,
@@ -53,10 +53,10 @@ fun ChatsScreen(nav: NavHostController) {
                 (cats.state as? UiState.Ready)?.data?.forEach { c -> FilterChip(category == c.id, { category = if (category == c.id) null else c.id }, { Text(c.name) }, leadingIcon = { Icon(Icons.Rounded.Label, null, Modifier.size(18.dp)) }) }
             }
             StateHost(loader, Modifier.weight(1f), isEmpty = { it.isEmpty() }, empty = { EmptyState(Icons.Rounded.ChatBubbleOutline, "Keine Chats", if (debounced.isNotEmpty() || category != null) "Für diese Suche gibt es keine Treffer." else "Starte einen neuen Chat mit „Neuer Chat“.") }) { all ->
-                val list = all.filter { when (filter) { ChatFilter.All -> true; ChatFilter.Info -> it.infoChannel; ChatFilter.Pinned -> it.pinned; ChatFilter.Unread -> it.unread > 0 } }
+                val list = all.distinctBy { it.id.ifBlank { it.name } }.filter { when (filter) { ChatFilter.All -> true; ChatFilter.Info -> it.infoChannel; ChatFilter.Pinned -> it.pinned; ChatFilter.Unread -> it.unread > 0 } }
                 if (list.isEmpty()) EmptyState(Icons.Rounded.SearchOff, "Keine Treffer", "Für diesen Filter gibt es keine Chats.")
                 else LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
-                    itemsIndexed(list, key = { _, c -> c.id }) { i, c ->
+                    itemsIndexed(list, key = { _, c -> c.id.ifBlank { c.name } }) { i, c ->
                         Box {
                             GroupedItem(i, list.size, c.name, supporting = c.teaser, unread = c.unread > 0,
                                 leading = { if (c.infoChannel) TileIcon(Icons.Rounded.Campaign) else PersonAvatar(c.name, key = c.id) },

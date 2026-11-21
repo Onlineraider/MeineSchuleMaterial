@@ -39,7 +39,7 @@ fun HomeScreen(nav: NavHostController) {
     val chats = rememberLoader(gen, state?.unreadChatMessageCount) { if (school?.canUseMessenger == false) emptyList() else app.repos.messenger.index() }
 
     PageScaffold(
-        title = "${Dates.greeting()}${profile?.displayName?.substringBefore(' ')?.takeIf { it.isNotBlank() }?.let { ", $it" } ?: ""}!", subtitle = Dates.dayLong(today),
+        title = "${Dates.greeting()}${profile?.displayName?.trim()?.takeIf { it.isNotBlank() }?.let { ", $it" } ?: ""}!", subtitle = Dates.dayLong(today),
         actions = {
             IconButton(onClick = { nav.navigate("notifications") }) { BadgedBox(badge = { val n = (state?.unreadChatMessageCount ?: 0) + (state?.notConfirmedCalendar?.size ?: 0) + (state?.notConfirmedMedia?.size ?: 0); if (n > 0) Badge { Text(n.toString()) } }) { Icon(Icons.Rounded.Notifications, "Benachrichtigungen") } }
             IconButton(onClick = { nav.navigate("profile") }) { PersonAvatar(profile?.displayName ?: "?", profile?.userId?.let { app.repos.school.avatarUrl(it) }, 32.dp, profile?.userId ?: "") }

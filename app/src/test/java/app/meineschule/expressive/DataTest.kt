@@ -47,10 +47,10 @@ class DataTest {
     }
 
     @Test fun hip_sanitizesScripts_andParsesGrades() {
-        val html = """<script>alert(1)</script><h3>Noten</h3><h4>Mathe</h4><table><tr><td>01.02.2025</td><td>2</td><td>Test</td><td></td></tr></table><img src=x onerror=alert(1)>"""
+        val html = """<script>alert(1)</script><h3>Noten</h3><h4>Mathe</h4><table><tr><th>Datum</th><th>Note</th><th>Bemerkung</th><th>Info</th></tr><tr><td>01.02.2025</td><td>2</td><td>Test</td><td></td></tr></table><img src=x onerror=alert(1)>"""
         assertFalse(HipParser.sanitize(html).contains("script")); assertFalse(HipParser.sanitize(html).contains("onerror"))
         val d = HipParser.parse(html)
-        assertEquals("Mathe", d.grades.firstOrNull()?.subject); assertEquals("2", d.grades.firstOrNull()?.value)
+        assertEquals(HipClass.Grd, d.tables.firstOrNull()?.cls); assertEquals("2", d.tables.first().rows.first()[1])
     }
     @Test fun hip_emptyInput_isEmpty() = assertTrue(HipParser.parse(null).isEmpty)
 
