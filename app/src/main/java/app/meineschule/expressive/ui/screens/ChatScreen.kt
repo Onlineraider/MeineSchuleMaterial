@@ -201,7 +201,7 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
                         when (r) {
                             is Row.Day -> Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) { Text(r.label, Modifier.clip(RoundedCornerShape(12.dp)).background(cs.surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant) }
                             is Row.Msg -> Bubble(r, chatId, query, onLong = { actionFor = r.m }, onRetry = { ctl.retry(r.m, ::toast) }, onReact = { e -> ctl.react(r.m, e, ::toast) }, onMore = { emojiFor = r.m },
-                                onAuthor = { r.m.authorId?.let { id -> nav.navigate("person?kind=user&uid=$id&n=${Urls.seg(r.m.authorName.orEmpty())}") } })
+                                onAuthor = { r.m.authorId?.let { id -> nav.navigate("person?u=${Urls.seg(id)}&n=${Urls.seg(r.m.authorName.orEmpty())}") } })
                         }
                     }
                     if (ctl.loadingOlder) item { Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.5.dp) } }
@@ -258,7 +258,7 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
                     val n = r.text.ifBlank { r.key }; val person = Regex("^(U|P):", RegexOption.IGNORE_CASE).containsMatchIn(r.key)
                     GroupedItem(i, members.size, n, supporting = if (person) "Person" else "Gruppe / Rolle",
                         leading = { PersonAvatar(n, if (r.key.startsWith("U:USER:", true)) app.repos.school.avatarUrl(r.key.substring(7)) else null, key = r.key) },
-                        onClick = { onDismiss(); nav.navigate("person?key=${Urls.seg(r.key)}&n=${Urls.seg(n)}") })
+                        onClick = { onDismiss(); nav.navigate("person?k=${Urls.seg(r.key)}&n=${Urls.seg(n)}") })
                 }
             }
         }

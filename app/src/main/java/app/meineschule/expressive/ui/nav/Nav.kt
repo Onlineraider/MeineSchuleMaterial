@@ -87,8 +87,8 @@ fun MainShell() {
                 navArgument("edit") { type = NavType.StringType; nullable = true; defaultValue = null },
                 navArgument("prefill") { type = NavType.StringType; nullable = true; defaultValue = null },
             )) { e -> NewChatScreen(nav, e.arguments?.getString("edit"), e.arguments?.getString("prefill")?.split('\n')?.filter { it.isNotBlank() }.orEmpty()) }
-            composable("person?u={u}&n={n}&b={b}&sc={sc}&sn={sn}", listOf("u", "n", "b", "sc", "sn").map { k -> navArgument(k) { type = NavType.StringType; nullable = true; defaultValue = null } }) { e ->
-                val a = e.arguments!!; PersonScreen(a.getString("u").orEmpty(), a.getString("n").orEmpty(), a.getString("b"), a.getString("sc"), a.getString("sn"), nav)
+            composable("person?u={u}&n={n}&b={b}&sc={sc}&sn={sn}&k={k}", listOf("u", "n", "b", "sc", "sn", "k").map { k -> navArgument(k) { type = NavType.StringType; nullable = true; defaultValue = null } }) { e ->
+                val a = e.arguments!!; PersonScreen(a.getString("u").orEmpty(), a.getString("n").orEmpty(), a.getString("b"), a.getString("sc"), a.getString("sn"), nav, a.getString("k"))
             }
             composable("share") { ShareScreen(shared?.text, shared?.uris.orEmpty(), nav) }
             composable(Dest.Calendar.route) { CalendarScreen() }

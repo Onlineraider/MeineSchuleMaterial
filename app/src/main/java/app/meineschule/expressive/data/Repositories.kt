@@ -104,9 +104,9 @@ class Repos(private val api: ApiClient, private val portal: PortalClient) {
     }
 
     inner class HipRepo {
-        suspend fun students(): List<Student> = J(api.get(api.scoped("HIP/Index"))).arr("students").map { it.toStudent() }
+        suspend fun students(): List<Student> = J(api.get(api.scoped("HIP/Index"))).let { r -> r.arr("students").ifEmpty { r.arr("Students") } }.map { it.toStudent() }
         /** HTML-Fragmente (content, contentCompact) – Bereinigung in HipParser. */
-        suspend fun student(id: String): HipData = J(api.get(api.scoped("HIP/Student/${seg(id)}"))).let { HipParser.parse(it.str("content") ?: it.str("contentCompact")) }
+        suspend fun student(id: String): HipData = J(api.get(api.scoped("HIP/Student/${seg(id)}"))).let { HipParser.parse(listOf("content", "contentCompact").firstNotNullOfOrNull { k -> it.str(k)?.takeIf { v -> v.isNotBlank() } }) }
     }
 
     inner class ProtocolRepo {

@@ -21,7 +21,9 @@ import kotlinx.coroutines.launch
 
 /** Personenprofil (Nutzer-ID aus Kontakt-Link, Chat oder Empfängersuche): Chat starten, Profil-Link kopieren/teilen. */
 @Composable
-fun PersonScreen(userId: String, name: String, server: String?, school: String?, schoolName: String?, nav: NavHostController) {
+fun PersonScreen(userIdArg: String, name: String, server: String?, school: String?, schoolName: String?, nav: NavHostController, recipientKey: String? = null) {
+    val userId = userIdArg.ifBlank { recipientKey?.takeIf { it.startsWith("U:USER:", true) }?.substring(7).orEmpty() }
+    val key = recipientKey ?: "U:USER:$userId"
     val app = LocalApp.current; val ctx = LocalContext.current; val clip = LocalClipboardManager.current; val scope = rememberCoroutineScope()
     val snack = remember { SnackbarHostState() }; val shareBase by app.prefs.shareBase.collectAsState()
     val me = app.session.profile.collectAsState().value
@@ -38,10 +40,10 @@ fun PersonScreen(userId: String, name: String, server: String?, school: String?,
             Text(shown, style = MaterialTheme.typography.headlineSmall)
             if (foreign) InfoBanner("Dieses Profil gehört zu einem anderen Server (${server}). Chats können nur auf dem verbundenen Server gestartet werden.", warn = true)
             if (userId == me?.userId) InfoBanner("Das bist du.", Icons.Rounded.Person)
-            else if (!foreign) LoadingButton("Chat starten", busy, {
+            else if (!foreign && (userId.isNotBlank() || recipientKey != null)) LoadingButton("Chat starten", busy, {
                 busy = true
                 scope.launch {
-                    runCatching { app.repos.messenger.create(null, listOf("U:USER:$userId=$shown"), reuse = true) }
+                    runCatching { app.repos.messenger.create(null, listOf("$key=$shown"), reuse = true) }
                         .onSuccess { id -> busy = false; if (id != null) { nav.popBackStack(); nav.navigate("chat/$id") } else snack.showSnackbar("Chat konnte nicht gestartet werden.") }
                         .onFailure { busy = false; snack.showSnackbar(it.asApi().userText) }
                 }

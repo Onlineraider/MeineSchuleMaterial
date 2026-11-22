@@ -26,9 +26,10 @@ import java.time.LocalDate
 @Composable
 fun HipScreen(onBack: () -> Unit) {
     val app = LocalApp.current; val gen by app.session.generation.collectAsState(); val school by app.session.school.collectAsState()
-    val students = school?.students.orEmpty(); var idx by remember { mutableIntStateOf(0) }; var tab by remember { mutableStateOf(HipClass.Abs) }
+    val hipStudents = rememberLoader(gen, school != null) { app.repos.hip.students() }
+    val students = (hipStudents.state as? UiState.Ready)?.data.orEmpty(); var idx by remember { mutableIntStateOf(0) }; var tab by remember { mutableStateOf(HipClass.Abs) }
     val student = students.getOrNull(idx)
-    val loader = rememberLoader(gen, student?.id, school != null) { if (student == null) HipData(emptyList(), emptyList()) else app.repos.hip.student(student.id) }
+    val loader = rememberLoader(gen, student?.id, students.size) { if (student == null) HipData(emptyList(), emptyList()) else app.repos.hip.student(student.id) }
     PageScaffold(title = "Home.InfoPoint", subtitle = student?.name, onBack = onBack) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding())) {
             if (students.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == idx, { idx = i }, { Text(s.name) }) } }
