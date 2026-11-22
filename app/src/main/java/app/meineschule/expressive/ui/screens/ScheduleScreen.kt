@@ -144,7 +144,7 @@ fun ScheduleScreen() {
 
 @Composable private fun LessonCard(e: LessonEntry, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    val bg = if (e.cancelled) cs.errorContainer else if (e.changed) cs.tertiaryContainer else cs.surfaceContainerLow
+    val bg = if (e.cancelled) cs.errorContainer else if (e.changed) cs.tertiaryContainer else cs.surfaceContainer
     val fg = if (e.cancelled) cs.onErrorContainer else if (e.changed) cs.onTertiaryContainer else cs.onSurface
     val sub = if (e.cancelled || e.changed) fg else cs.onSurfaceVariant
     Row(Modifier.fillMaxWidth().clip(if (e.cancelled) RoundedCornerShape(16.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)).background(bg).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -228,7 +228,7 @@ fun ScheduleScreen() {
                     itemsIndexed(rows) { i, r ->
                         GroupedItem(i, rows.size, listOf(r.subject, r.group).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Änderung" },
                             supporting = listOfNotNull("Stunde ${r.hours}".takeIf { r.hours.isNotBlank() }, r.teacher.takeIf { it.isNotBlank() }?.let { "Lehrer: $it" }, r.room.takeIf { it.isNotBlank() }?.let { "Raum: $it" }, r.info.takeIf { it.isNotBlank() }).joinToString("\n"),
-                            container = if (r.highlighted) cs.tertiaryContainer else cs.surfaceContainerLow, leading = { TileIcon(if (r.highlighted) Icons.Rounded.SwapHoriz else Icons.Rounded.Schedule) })
+                            container = if (r.highlighted) cs.tertiaryContainer else cs.surfaceContainer, leading = { TileIcon(if (r.highlighted) Icons.Rounded.SwapHoriz else Icons.Rounded.Schedule) })
                     }
                 }
             }

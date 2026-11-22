@@ -21,7 +21,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
-import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.pullToRefresh
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -84,12 +86,17 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
     loader: Loader<T>, modifier: Modifier = Modifier, isEmpty: (T) -> Boolean = { false }, empty: @Composable () -> Unit = {},
     skeleton: @Composable () -> Unit = { SkeletonList() }, content: @Composable (T) -> Unit,
 ) {
-    PullToRefreshBox(isRefreshing = loader.refreshing && loader.state is UiState.Ready, onRefresh = { loader.reload() }, modifier = modifier) {
+    val refreshing = loader.refreshing && loader.state is UiState.Ready; val pull = rememberPullToRefreshState()
+    // Hohe Schwelle (140 dp): normales Hochscrollen/Flingen zum Listenanfang löst nicht versehentlich „Neu laden“ aus.
+    Box(modifier.pullToRefresh(refreshing, pull, enabled = loader.state is UiState.Ready, threshold = 140.dp) { loader.reload() }) {
+        Box(Modifier.fillMaxSize()) {
         when (val s = loader.state) {
             UiState.Loading -> skeleton()
             is UiState.Failed -> ErrorState(s.error, onRetry = { loader.reload() })
             is UiState.Ready -> if (isEmpty(s.data)) empty() else content(s.data)
         }
+        }
+        PullToRefreshDefaults.LoadingIndicator(state = pull, isRefreshing = refreshing, modifier = Modifier.align(Alignment.TopCenter), threshold = 140.dp)
     }
 }
 
@@ -159,7 +166,7 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
 /** Gruppierte Listenzeile: äußere Ecken groß, innere klein (Material-3-Expressive-„Segmented List“). */
 @Composable fun GroupedItem(
     index: Int, count: Int, title: String, modifier: Modifier = Modifier, supporting: String? = null, meta: String? = null, leading: (@Composable () -> Unit)? = null,
-    trailing: (@Composable () -> Unit)? = null, unread: Boolean = false, strike: Boolean = false, container: Color = MaterialTheme.colorScheme.surfaceContainerLow, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null, unread: Boolean = false, strike: Boolean = false, container: Color = MaterialTheme.colorScheme.surfaceContainer, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null,
 ) {
     val shape = MsdShapes.listShape(index, count); val cs = MaterialTheme.colorScheme
     val base = modifier.padding(horizontal = 16.dp).padding(bottom = 2.dp).fillMaxWidth().clip(shape).background(container)

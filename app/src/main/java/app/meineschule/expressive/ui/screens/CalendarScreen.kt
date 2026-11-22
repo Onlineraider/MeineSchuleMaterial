@@ -103,7 +103,7 @@ private enum class CalMode(val label: String) { Month("Monat"), Week("Woche"), A
 /** Wochenleiste Mo–So mit Terminzähler je Tag. */
 @Composable private fun WeekStrip(weekStart: LocalDate, selected: LocalDate, events: List<CalendarEvent>, onPick: (LocalDate) -> Unit) {
     val cs = MaterialTheme.colorScheme; val today = LocalDate.now()
-    Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainerLow).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+    Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainer).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         (0..6L).forEach { o -> val d = weekStart.plusDays(o); val n = events.count { it.on(d) }; val sel = d == selected
             Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(if (sel) cs.primary else if (d == today) cs.primaryContainer else androidx.compose.ui.graphics.Color.Transparent).clickable { onPick(d) }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, Dates.DE).take(2), style = MaterialTheme.typography.labelMedium, color = if (sel) cs.onPrimary else cs.onSurfaceVariant)
@@ -115,7 +115,7 @@ private enum class CalMode(val label: String) { Month("Monat"), Week("Woche"), A
 
 @Composable private fun MonthGrid(month: YearMonth, selected: LocalDate, events: List<CalendarEvent>, onPick: (LocalDate) -> Unit) {
     val cs = MaterialTheme.colorScheme; val first = month.atDay(1); val lead = (first.dayOfWeek.value - 1); val today = LocalDate.now()
-    Column(Modifier.padding(horizontal = 12.dp).clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainerLow).padding(12.dp)) {
+    Column(Modifier.padding(horizontal = 12.dp).clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainer).padding(12.dp)) {
         Row { DayOfWeek.entries.forEach { Text(it.getDisplayName(TextStyle.SHORT, Dates.DE).take(2), Modifier.weight(1f), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant, textAlign = androidx.compose.ui.text.style.TextAlign.Center) } }
         val cells = lead + month.lengthOfMonth(); val rows = (cells + 6) / 7
         repeat(rows) { r -> Row(Modifier.padding(top = 4.dp)) { repeat(7) { c ->

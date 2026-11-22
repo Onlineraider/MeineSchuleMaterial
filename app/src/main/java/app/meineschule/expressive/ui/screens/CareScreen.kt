@@ -57,7 +57,7 @@ fun CareScreen(onBack: () -> Unit) {
     Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
         if (ix.options.isEmpty()) EmptyState(Icons.Rounded.Schedule, "Keine Abholoptionen", "Es sind keine Optionen hinterlegt.")
         ix.options.forEach { o -> val sel = option == o.id
-            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(if (sel) 28.dp else 16.dp)).background(if (sel) cs.primaryContainer else cs.surfaceContainerLow).clickable(enabled = canEdit) { option = o.id }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(if (sel) 28.dp else 16.dp)).background(if (sel) cs.primaryContainer else cs.surfaceContainer).clickable(enabled = canEdit) { option = o.id }.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                 RadioButton(sel, { option = o.id }, enabled = canEdit); Spacer(Modifier.width(8.dp)); Text(o.name, style = MaterialTheme.typography.titleMedium, color = if (sel) cs.onPrimaryContainer else cs.onSurface) } }
         OutlinedTextField(memo, { memo = it }, Modifier.fillMaxWidth(), label = { Text("Nachricht an die Betreuung") }, enabled = canEdit, minLines = 2, shape = RoundedCornerShape(16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) { Checkbox(future, { future = it }, enabled = canEdit); Text("Als Standard für künftige Tage übernehmen") }

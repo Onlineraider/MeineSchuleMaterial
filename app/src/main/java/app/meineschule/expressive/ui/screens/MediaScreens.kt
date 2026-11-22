@@ -51,7 +51,7 @@ fun MediaScreen(nav: NavHostController) {
 
 @Composable private fun MediaCard(m: MediaItem, onClick: () -> Unit) {
     val app = LocalApp.current; val cs = MaterialTheme.colorScheme; val ctx = LocalContext.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomEnd = 28.dp, bottomStart = 10.dp)).background(cs.surfaceContainerLow).clickable(onClick = onClick)) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomEnd = 28.dp, bottomStart = 10.dp)).background(cs.surfaceContainer).clickable(onClick = onClick)) {
         Box(Modifier.fillMaxWidth().height(170.dp).background(cs.tertiaryContainer)) {
             SubcomposeAsyncImage(ImageRequest.Builder(ctx).data(app.repos.media.imageUrl(m.id)).build(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, loading = { SkeletonBox(Modifier.fillMaxSize()) }, error = { Icon(Icons.Rounded.Image, null, Modifier.align(Alignment.Center).size(40.dp), tint = cs.onTertiaryContainer) })
             if (m.likeCount > 0) SuggestionChip(onClick = {}, label = { Text("♥ ${m.likeCount}") }, modifier = Modifier.padding(12.dp).align(Alignment.TopStart))

@@ -25,7 +25,7 @@ private val TealLight = lightColorScheme(
     background = Color(0xFFF4FBF9), onBackground = Color(0xFF161D1C), surface = Color(0xFFF4FBF9), onSurface = Color(0xFF161D1C),
     surfaceVariant = Color(0xFFDAE5E2), onSurfaceVariant = Color(0xFF3F4947), outline = Color(0xFF6F7977), outlineVariant = Color(0xFFBEC9C6),
     inverseSurface = Color(0xFF2B3231), inverseOnSurface = Color(0xFFECF2F0), inversePrimary = Color(0xFF7FD5C8), scrim = Color(0xFF000000),
-    surfaceContainerLowest = Color(0xFFFFFFFF), surfaceContainerLow = Color(0xFFEEF5F3), surfaceContainer = Color(0xFFE8EFED), surfaceContainerHigh = Color(0xFFE3EAE8), surfaceContainerHighest = Color(0xFFDDE4E2),
+    surfaceContainerLowest = Color(0xFFFFFFFF), surfaceContainerLow = Color(0xFFE9F1EF), surfaceContainer = Color(0xFFDFE9E6), surfaceContainerHigh = Color(0xFFD5E0DD), surfaceContainerHighest = Color(0xFFCBD7D4),
     surfaceDim = Color(0xFFD5DBDA), surfaceBright = Color(0xFFF4FBF9),
 )
 private val TealDark = darkColorScheme(
@@ -36,7 +36,7 @@ private val TealDark = darkColorScheme(
     background = Color(0xFF0E1514), onBackground = Color(0xFFDDE4E2), surface = Color(0xFF0E1514), onSurface = Color(0xFFDDE4E2),
     surfaceVariant = Color(0xFF3F4947), onSurfaceVariant = Color(0xFFBEC9C6), outline = Color(0xFF899390), outlineVariant = Color(0xFF3F4947),
     inverseSurface = Color(0xFFDDE4E2), inverseOnSurface = Color(0xFF2B3231), inversePrimary = Color(0xFF006A60), scrim = Color(0xFF000000),
-    surfaceContainerLowest = Color(0xFF090F0F), surfaceContainerLow = Color(0xFF161D1C), surfaceContainer = Color(0xFF1A2120), surfaceContainerHigh = Color(0xFF252B2B), surfaceContainerHighest = Color(0xFF303636),
+    surfaceContainerLowest = Color(0xFF090F0F), surfaceContainerLow = Color(0xFF1A2221), surfaceContainer = Color(0xFF232C2B), surfaceContainerHigh = Color(0xFF2D3636), surfaceContainerHighest = Color(0xFF384140),
     surfaceDim = Color(0xFF0E1514), surfaceBright = Color(0xFF343B3A),
 )
 

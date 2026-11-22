@@ -77,7 +77,7 @@ fun ProfileScreen(nav: NavHostController) {
                 val active = s.tag == tag
                 GroupedItem(i, p.schools.size, s.name, supporting = if (active) "Aktiv" else "Zum Wechseln tippen", leading = { TileIcon(Icons.Rounded.School, container = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondaryContainer, content = if (active) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSecondaryContainer) },
                     trailing = { if (switching == s.tag) CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.5.dp) else if (active) Icon(Icons.Rounded.CheckCircle, "Aktive Schule") },
-                    container = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+                    container = if (active) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainer,
                     onClick = if (active || switching != null) null else ({ confirm = s.tag }))
             }
             if (p.schools.size < 2) item { Text("Dein Konto ist nur einer Schule zugeordnet.", Modifier.padding(horizontal = 24.dp, vertical = 8.dp), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
