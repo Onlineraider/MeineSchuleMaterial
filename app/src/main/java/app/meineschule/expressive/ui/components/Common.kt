@@ -87,8 +87,8 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
     skeleton: @Composable () -> Unit = { SkeletonList() }, content: @Composable (T) -> Unit,
 ) {
     val toolbarExpanded = LocalToolbarExpanded.current; val refreshing = loader.refreshing && loader.state is UiState.Ready; val pull = rememberPullToRefreshState()
-    // Hohe Schwelle (140 dp): normales Hochscrollen/Flingen zum Listenanfang löst nicht versehentlich „Neu laden“ aus.
-    Box(modifier.pullToRefresh(refreshing, pull, enabled = loader.state is UiState.Ready && toolbarExpanded(), threshold = 140.dp) { loader.reload() }) {
+    // Standard-Schwelle: normales Hochscrollen/Flingen zum Listenanfang löst nicht versehentlich „Neu laden“ aus.
+    Box(modifier.pullToRefresh(refreshing, pull, enabled = loader.state is UiState.Ready && toolbarExpanded()) { loader.reload() }) {
         Box(Modifier.fillMaxSize()) {
         when (val s = loader.state) {
             UiState.Loading -> skeleton()
