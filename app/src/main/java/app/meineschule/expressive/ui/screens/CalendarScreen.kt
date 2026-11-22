@@ -133,14 +133,13 @@ private enum class CalMode(val label: String) { Month("Monat"), Week("Woche"), A
 
 @Composable private fun EventSheet(e: CalendarEvent, langs: List<app.meineschule.expressive.data.Language>, onDismiss: () -> Unit, onConfirmed: () -> Unit) {
     val app = LocalApp.current; val scope = rememberCoroutineScope(); val cs = MaterialTheme.colorScheme
-    var lang by remember { mutableStateOf<String?>(null) }; var busy by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
+    val uiLang by app.prefs.language.collectAsState(); val lang = app.prefs.translation(langs, uiLang); var busy by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val detail = rememberLoader(e.id, lang) { app.repos.calendar.detail(e.id, lang) }
     ModalBottomSheet(onDismiss, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val d = (detail.state as? UiState.Ready)?.data ?: e
             Text(d.title, style = MaterialTheme.typography.headlineMedium)
             Text(listOfNotNull(Dates.parse(d.start)?.let { if (d.allDay) Dates.dayLong(it.toLocalDate()) else "${Dates.dayLong(it.toLocalDate())} · ${Dates.time(it)}" }, d.location, d.category).joinToString(" · "), color = cs.onSurfaceVariant)
-            if (langs.isNotEmpty()) Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(lang == null, { lang = null }, { Text("Original") }); langs.take(4).forEach { l -> FilterChip(lang == l.key, { lang = l.key }, { Text(l.name) }) } }
             if (detail.state is UiState.Loading) SkeletonBox(Modifier.fillMaxWidth().height(60.dp)) else d.text?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
             err?.let { Text(it, color = cs.error) }
             if (d.confirmReceive) {

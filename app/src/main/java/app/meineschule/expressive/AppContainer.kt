@@ -25,6 +25,15 @@ class Prefs(ctx: Context) {
     val shareBase = MutableStateFlow(sp.getString("shareBase", DeepLinks.DEFAULT_SHARE_BASE)!!)
     val debug = MutableStateFlow(sp.getBoolean("debug", false).also { DebugLog.enabled.value = it })
     fun setDebug(v: Boolean) { debug.value = v; DebugLog.enabled.value = v; sp.edit().putBoolean("debug", v).apply(); if (!v) DebugLog.clear() }
+    /** Übersetzungssprache: "system" (Standard = Systemsprache), "none" (Original) oder ein Sprachschlüssel der Schule. */
+    val language = MutableStateFlow(sp.getString("language", "system")!!)
+    fun setLanguage(v: String) { language.value = v; sp.edit().putString("language", v).apply() }
+    /** Zu verwendende Übersetzung (null = Original) – bei „system“ nur, wenn die Schule die Systemsprache anbietet. */
+    fun translation(langs: List<app.meineschule.expressive.data.Language>, pref: String = language.value): String? = when (pref) {
+        "none" -> null
+        "system" -> java.util.Locale.getDefault().language.lowercase().let { sys -> langs.firstOrNull { it.key.lowercase().take(2) == sys && sys != "de" }?.key }
+        else -> langs.firstOrNull { it.key == pref }?.key
+    }
     val avatars = MutableStateFlow(sp.getBoolean("avatars", true))
     fun setShareBase(v: String) { shareBase.value = v; sp.edit().putString("shareBase", v).apply() }
     fun setAvatars(v: Boolean) { avatars.value = v; sp.edit().putBoolean("avatars", v).apply() }

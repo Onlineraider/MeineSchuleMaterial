@@ -65,6 +65,18 @@ fun SettingsScreen(onBack: () -> Unit, nav: androidx.navigation.NavHostControlle
                 item { SwitchRow("Debug-Modus aktiv", "Server-Antworten werden nur im Arbeitsspeicher protokolliert (ohne Tokens/Passwörter). Zum Beenden 7× auf „Einstellungen“ tippen.", true, true, Icons.Rounded.BugReport) { app.prefs.setDebug(it) } }
                 item { Box(Modifier.padding(horizontal = 16.dp)) { FilledTonalButton({ nav.navigate("debuglog") }, Modifier.fillMaxWidth()) { Icon(Icons.Rounded.DataObject, null); Spacer(Modifier.width(8.dp)); Text("Antwort-Log ansehen (${DebugLog.entries.collectAsState().value.size})") } } }
             }
+            item { SectionTitle("Sprache") }
+            item {
+                val langs = (app.session.school.collectAsState().value?.languages).orEmpty(); val cur by app.prefs.language.collectAsState(); var open by remember { mutableStateOf(false) }
+                val opts = listOf("system" to "Systemsprache (Standard)", "none" to "Original (keine Übersetzung)") + langs.map { it.key to it.name }
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ExposedDropdownMenuBox(open, { open = it }) {
+                        OutlinedTextField(opts.firstOrNull { it.first == cur }?.second ?: cur, {}, readOnly = true, label = { Text("Übersetzung von Beiträgen & Terminen") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(open) }, modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                        ExposedDropdownMenu(open, { open = false }) { opts.forEach { (k, n) -> DropdownMenuItem({ Text(n) }, { app.prefs.setLanguage(k); open = false }) } }
+                    }
+                    Text(if (langs.isEmpty()) "Deine Schule bietet keine Übersetzungen an." else "Gilt überall in der App. Bei „Systemsprache“ wird übersetzt, sobald die Schule deine Gerätesprache anbietet.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
             item { SectionTitle("Darstellung") }
             item {
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

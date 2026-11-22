@@ -67,7 +67,7 @@ fun MediaScreen(nav: NavHostController) {
 @Composable
 fun MediaDetailScreen(id: String, onBack: () -> Unit) {
     val app = LocalApp.current; val scope = rememberCoroutineScope(); val ctx = LocalContext.current; val cs = MaterialTheme.colorScheme; val school by app.session.school.collectAsState()
-    var lang by remember { mutableStateOf<String?>(null) }; val snack = remember { SnackbarHostState() }
+    val uiLang by app.prefs.language.collectAsState(); val lang = app.prefs.translation(school?.languages.orEmpty(), uiLang); val snack = remember { SnackbarHostState() }
     val loader = rememberLoader(id, lang) { app.repos.media.detail(id, lang) }
     fun act(msg: String, f: suspend () -> Unit) = scope.launch { try { f(); loader.reload(); snack.showSnackbar(msg) } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } }
     PageScaffold(title = (loader.state as? UiState.Ready)?.data?.title ?: "Beitrag", onBack = onBack, snackbarHost = { SnackbarHost(snack) }) { pad ->
@@ -75,7 +75,6 @@ fun MediaDetailScreen(id: String, onBack: () -> Unit) {
             LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 item { SubcomposeAsyncImage(ImageRequest.Builder(ctx).data(app.repos.media.imageUrl(m.id, 1024)).build(), m.title, Modifier.fillMaxWidth().heightIn(max = 320.dp).clip(RoundedCornerShape(28.dp)), contentScale = ContentScale.Crop, loading = { SkeletonBox(Modifier.fillMaxWidth().height(200.dp)) }, error = { }) }
                 item { Text(listOfNotNull(Dates.parse(m.from ?: m.created)?.let { Dates.dayShort(it.toLocalDate()) }, m.creator).joinToString(" · "), color = cs.onSurfaceVariant) }
-                school?.languages?.takeIf { it.isNotEmpty() }?.let { l -> item { Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(lang == null, { lang = null }, { Text("Original") }); l.forEach { FilterChip(lang == it.key, { lang = it.key }, { Text(it.name) }) } } } }
                 m.text?.let { item { Text(it, style = MaterialTheme.typography.bodyLarge) } }
                 item { Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilledTonalButton(onClick = { act(if (m.liked) "Gefällt mir entfernt" else "Gefällt mir") { app.repos.media.toggleLike(id) } }, shapes = ButtonDefaults.shapes()) { Icon(if (m.liked) Icons.Rounded.Favorite else Icons.Rounded.FavoriteBorder, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text(if (m.liked) "Gefällt dir" else "Gefällt mir") }
