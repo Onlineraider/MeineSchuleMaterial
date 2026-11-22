@@ -6,6 +6,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -48,6 +49,11 @@ fun ScheduleScreen() {
     val label = when (target?.first) { "S" -> students.firstOrNull { it.id == target!!.second }?.name; "C" -> cl.firstOrNull { it.id == target!!.second }?.name?.let { "Klasse $it" }; "G" -> gr.firstOrNull { it.id == target!!.second }?.name; else -> null } ?: "Vertretungen"
     val loader = rememberLoader(gen, weekStart, target, school != null) { app.repos.schedule(weekStart, target?.takeIf { it.first == "S" }?.second, target?.takeIf { it.first != "S" }?.second) }
     var pickerOpen by remember { mutableStateOf(false) }
+    // Vertretungen des gewählten Tages (Portal-Seite); schlägt das Lesen fehl, bleibt der normale Plan ohne Einbettung
+    val changes = rememberLoader(gen, selected, school != null) { runCatching { app.repos.changes(selected) } }
+    val changeResult = (changes.state as? UiState.Ready)?.data
+    val myNames = buildList { students.forEach { st -> st.cls?.let { add(it) } }; when (target?.first) { "S" -> students.firstOrNull { it.id == target!!.second }?.cls?.let { add(it) }; "C" -> cl.firstOrNull { it.id == target!!.second }?.name?.let { add(it) }; "G" -> gr.firstOrNull { it.id == target!!.second }?.name?.let { add(it) } } }
+    val planNames = when (target?.first) { "S" -> listOfNotNull(students.firstOrNull { it.id == target!!.second }?.cls); "C" -> listOfNotNull(cl.firstOrNull { it.id == target!!.second }?.name); "G" -> listOfNotNull(gr.firstOrNull { it.id == target!!.second }?.name); else -> emptyList() }
     val end = weekStart.plusDays(4)
     var times by remember { mutableStateOf(LessonTimes.parse(app.prefs.lessonTimes)) }; var editTimes by remember { mutableStateOf(false) }
     var detailOf by remember { mutableStateOf<Triple<ScheduleDay, Slot, LessonEntry>?>(null) }
@@ -78,11 +84,15 @@ fun ScheduleScreen() {
             if (view == PlanView.Day) PrimaryTabRow(selectedTabIndex = (selected.dayOfWeek.value - 1).coerceIn(0, 4), containerColor = cs.surface) {
                 (0..4).forEach { i -> val d = weekStart.plusDays(i.toLong()); Tab(selected = d == selected, onClick = { selected = d }, text = { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(Dates.weekday(d), fontWeight = FontWeight.Bold); Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall) } }) }
             }
+            if (target == null) { SubstitutionView(changeResult, myNames.distinct(), Modifier.weight(1f)); return@Column }
             StateHost(loader, Modifier.weight(1f), isEmpty = { it.days.isEmpty() }, empty = { EmptyState(Icons.Rounded.EventAvailable, "Kein Stundenplan", "Für diese Woche liegt kein Stundenplan vor.") }) { sched ->
                 val ch = sched.changes()
                 Column {
                     if (ch.isNotEmpty()) { val nx = ch.count { it.third.cancelled }; InfoBanner("Diese Woche: " + listOfNotNull(nx.takeIf { it > 0 }?.let { "$it Entfall" + if (it > 1) "e" else "" }, (ch.size - nx).takeIf { it > 0 }?.let { "$it Änderung" + if (it > 1) "en" else "" }).joinToString(" · "), Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
-                    if (view == PlanView.Day) DayView(sched.days.firstOrNull { it.date == selected }, selected, times) { d, sl, e -> detailOf = Triple(d, sl, e) } else WeekView(sched, today, times)
+                    val rel = changeResult?.getOrNull()?.rows?.filter { ChangesParser.relevant(it, planNames) }.orEmpty()
+                    if (rel.isNotEmpty() && view == PlanView.Day) InfoBanner("Vertretungen für ${planNames.joinToString()} am ${Dates.dayShort(selected)}: ${rel.size} Änderung" + if (rel.size > 1) "en" else "", Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
+                    val dayShown = sched.days.firstOrNull { it.date == selected }.let { if (rel.isNotEmpty()) ChangesParser.overlay(it, selected, rel) else it }
+                    if (view == PlanView.Day) DayView(dayShown, selected, times) { d, sl, e -> detailOf = Triple(d, sl, e) } else WeekView(sched, today, times)
                 }
             }
         }
@@ -192,4 +202,27 @@ fun ScheduleScreen() {
         } },
         confirmButton = { TextButton({ val v = rows.filter { ok.matches(it.first) && ok.matches(it.second) && it.first < it.second }.map { TimeRange(it.first, it.second) }; if (v.isNotEmpty()) onSave(v) }) { Text("Speichern") } },
         dismissButton = { TextButton(onDismiss) { Text("Abbrechen") } })
+}
+
+/** Vertretungsplan der Schule für den gewählten Tag (alle Klassen), standardmäßig auf die eigenen Klassen gefiltert. */
+@Composable private fun SubstitutionView(res: Result<DayChanges>?, mine: List<String>, modifier: Modifier) {
+    val cs = MaterialTheme.colorScheme; var onlyMine by remember { mutableStateOf(mine.isNotEmpty()) }
+    Column(modifier) {
+        when {
+            res == null -> SkeletonList()
+            res.isFailure -> EmptyState(Icons.Rounded.CloudOff, "Vertretungen nicht lesbar", res.exceptionOrNull()?.message ?: "Das Portal hat keine Daten geliefert.")
+            else -> { val d = res.getOrThrow(); val rows = if (onlyMine) d.rows.filter { ChangesParser.relevant(it, mine) } else d.rows
+                if (mine.isNotEmpty()) Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { FilterChip(onlyMine, { onlyMine = true }, { Text("Meine Klasse") }); FilterChip(!onlyMine, { onlyMine = false }, { Text("Alle (${d.rows.size})") }) }
+                LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) {
+                    d.notes.forEach { n -> item { InfoBanner(n, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
+                    if (rows.isEmpty()) item { EmptyState(Icons.Rounded.CheckCircle, "Keine Vertretungen", if (onlyMine) "Für deine Klasse gibt es an diesem Tag keine Änderungen." else "Für diesen Tag sind keine Änderungen eingetragen.") }
+                    itemsIndexed(rows) { i, r ->
+                        GroupedItem(i, rows.size, listOf(r.subject, r.group).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Änderung" },
+                            supporting = listOfNotNull("Stunde ${r.hours}".takeIf { r.hours.isNotBlank() }, r.teacher.takeIf { it.isNotBlank() }?.let { "Lehrer: $it" }, r.room.takeIf { it.isNotBlank() }?.let { "Raum: $it" }, r.info.takeIf { it.isNotBlank() }).joinToString("\n"),
+                            container = if (r.highlighted) cs.tertiaryContainer else cs.surfaceContainerLow, leading = { TileIcon(if (r.highlighted) Icons.Rounded.SwapHoriz else Icons.Rounded.Schedule) })
+                    }
+                }
+            }
+        }
+    }
 }

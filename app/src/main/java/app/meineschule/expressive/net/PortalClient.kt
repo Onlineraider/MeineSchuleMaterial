@@ -68,4 +68,14 @@ class PortalClient(private val api: ApiClient, base: OkHttpClient, private val o
             establish(school); fetch() // abgelaufene Portal-Sitzung: einmal neu aufbauen
         }
     }
+
+    /** HTML der Portal-Seite „Stundenplan/Vertretungen“ für einen Tag (Tabelle „Änderungen“ + Hinweise). Wird in [ChangesParser] ausgewertet. */
+    suspend fun changesHtml(school: String, date: LocalDate): String {
+        suspend fun fetch(): String {
+            val url = "$origin/${Urls.seg(school)}/schedule".toHttpUrl().newBuilder().addQueryParameter("date", date.toString()).addQueryParameter("cog", "").addQueryParameter("t", "").addQueryParameter("s", "").addQueryParameter("view", "").build()
+            getFollowing(url).use { r -> val t = r.body?.string().orEmpty(); if (!r.isSuccessful || !t.contains("<", false)) throw ApiException(ErrorKind.Forbidden, "Portal hat keine Seite geliefert"); return t }
+        }
+        if (establishedFor != school) establish(school)
+        return try { fetch() } catch (e: ApiException) { if (e.kind != ErrorKind.Forbidden) throw e; establish(school); fetch() }
+    }
 }
