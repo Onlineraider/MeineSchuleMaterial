@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -32,12 +33,14 @@ fun ProfileScreen(nav: NavHostController) {
     val infos = rememberLoader(gen, kids.map { it.id }) { kids.map { st -> st to runCatching { app.repos.school.student(st.id) }.getOrNull() } }
     fun key(x: Person): String? = x.userId?.let { "U:USER:$it" } ?: x.id?.takeIf { x.type != null }?.let { "P:${x.type!!.uppercase()}:$it" }
     val p = profile
+    var zoom by remember { mutableStateOf(false) }
+    if (zoom && p != null) ImageZoomDialog(app.repos.school.avatarUrl(p.userId, 512), p.displayName) { zoom = false }
     PageScaffold("Profil", null, { nav.popBackStack() }, snackbarHost = { SnackbarHost(snack) }) { pad ->
         if (p == null) { EmptyState(Icons.Rounded.Person, "Kein Profil geladen"); return@PageScaffold }
         LazyColumn(contentPadding = PaddingValues(top = pad.calculateTopPadding() + 8.dp, bottom = 24.dp)) {
             item {
                 Row(Modifier.padding(horizontal = 24.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    PersonAvatar(p.displayName, p.userId.takeIf { it.isNotBlank() }?.let { app.repos.school.avatarUrl(it, 160) }, 72.dp, key = p.userId)
+                    Box(Modifier.clickable(enabled = p.userId.isNotBlank()) { zoom = true }) { PersonAvatar(p.displayName, p.userId.takeIf { it.isNotBlank() }?.let { app.repos.school.avatarUrl(it, 160) }, 72.dp, key = p.userId) }
                     Column { Text(p.displayName, style = MaterialTheme.typography.headlineSmall); school?.roles?.takeIf { it.isNotEmpty() }?.let { Text(it.joinToString(", "), color = MaterialTheme.colorScheme.onSurfaceVariant) } }
                 }
             }

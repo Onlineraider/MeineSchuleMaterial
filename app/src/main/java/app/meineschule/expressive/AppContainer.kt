@@ -1,5 +1,6 @@
 package app.meineschule.expressive
 
+import app.meineschule.expressive.net.DebugLog
 import android.content.Context
 import androidx.compose.runtime.compositionLocalOf
 import app.meineschule.expressive.auth.*
@@ -22,6 +23,8 @@ class Prefs(ctx: Context) {
     val biometricLock = MutableStateFlow(sp.getBoolean("bio", false))
     val school = MutableStateFlow(sp.getString("school", null))
     val shareBase = MutableStateFlow(sp.getString("shareBase", DeepLinks.DEFAULT_SHARE_BASE)!!)
+    val debug = MutableStateFlow(sp.getBoolean("debug", false).also { DebugLog.enabled.value = it })
+    fun setDebug(v: Boolean) { debug.value = v; DebugLog.enabled.value = v; sp.edit().putBoolean("debug", v).apply(); if (!v) DebugLog.clear() }
     val avatars = MutableStateFlow(sp.getBoolean("avatars", true))
     fun setShareBase(v: String) { shareBase.value = v; sp.edit().putString("shareBase", v).apply() }
     fun setAvatars(v: Boolean) { avatars.value = v; sp.edit().putBoolean("avatars", v).apply() }

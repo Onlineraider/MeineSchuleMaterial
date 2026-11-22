@@ -28,6 +28,8 @@ import app.meineschule.expressive.LocalApp
 import app.meineschule.expressive.Prefs
 import app.meineschule.expressive.ui.components.*
 import app.meineschule.expressive.work.Notifier
+import app.meineschule.expressive.net.DebugLog
+import kotlinx.coroutines.launch
 
 /** Vollständiges Abmelden: Tokens, Sitzung, Hub, Hintergrundjobs und heruntergeladene Dateien werden entfernt. */
 fun fullLogout(app: AppContainer) {
@@ -41,7 +43,7 @@ fun fullLogout(app: AppContainer) {
 }
 
 @Composable
-fun SettingsScreen(onBack: () -> Unit) {
+fun SettingsScreen(onBack: () -> Unit, nav: androidx.navigation.NavHostController) {
     val app = LocalApp.current; val ctx = LocalContext.current
     val mode by app.prefs.mode.collectAsState(); val dynamic by app.prefs.dynamicColor.collectAsState(); val seed by app.prefs.seed.collectAsState()
     val notify by app.prefs.notifications.collectAsState(); val bio by app.prefs.biometricLock.collectAsState()
@@ -51,8 +53,18 @@ fun SettingsScreen(onBack: () -> Unit) {
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> app.prefs.setNotifications(ok) }
     val canBio = remember { BiometricManager.from(ctx).canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS }
 
-    PageScaffold("Einstellungen", null, onBack, snackbarHost = { SnackbarHost(snack) }) { pad ->
+    val debug by app.prefs.debug.collectAsState(); var taps by remember { mutableIntStateOf(0) }; var lastTap by remember { mutableLongStateOf(0L) }
+    val scope = rememberCoroutineScope()
+    PageScaffold("Einstellungen", null, onBack, snackbarHost = { SnackbarHost(snack) }, onTitleClick = {
+        val now = System.currentTimeMillis(); taps = if (now - lastTap < 1500) taps + 1 else 1; lastTap = now
+        if (taps >= 7) { taps = 0; app.prefs.setDebug(!debug); scope.launch { snack.showSnackbar(if (!debug) "Debug-Modus aktiviert" else "Debug-Modus beendet") } }
+    }) { pad ->
         LazyColumn(contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = 32.dp)) {
+            if (debug) {
+                item { SectionTitle("Debug") }
+                item { SwitchRow("Debug-Modus aktiv", "Server-Antworten werden nur im Arbeitsspeicher protokolliert (ohne Tokens/Passwörter). Zum Beenden 7× auf „Einstellungen“ tippen.", true, true, Icons.Rounded.BugReport) { app.prefs.setDebug(it) } }
+                item { Box(Modifier.padding(horizontal = 16.dp)) { FilledTonalButton({ nav.navigate("debuglog") }, Modifier.fillMaxWidth()) { Icon(Icons.Rounded.DataObject, null); Spacer(Modifier.width(8.dp)); Text("Antwort-Log ansehen (${DebugLog.entries.collectAsState().value.size})") } } }
+            }
             item { SectionTitle("Darstellung") }
             item {
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {

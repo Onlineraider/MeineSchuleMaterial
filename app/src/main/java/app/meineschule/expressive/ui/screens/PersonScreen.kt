@@ -1,6 +1,7 @@
 package app.meineschule.expressive.ui.screens
 
 import android.content.Intent
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -34,6 +35,7 @@ fun PersonScreen(userIdArg: String, name: String, server: String?, school: Strin
     val userId = userIdArg.ifBlank { recipientKey?.takeIf { it.startsWith("U:USER:", true) }?.substring(7).orEmpty() }
     val key = recipientKey ?: "U:USER:$userId"
     val app = LocalApp.current; val ctx = LocalContext.current; val clip = LocalClipboardManager.current; val scope = rememberCoroutineScope()
+    var zoom by remember { mutableStateOf(false) }
     val snack = remember { SnackbarHostState() }; val shareBase by app.prefs.shareBase.collectAsState()
     val me = app.session.profile.collectAsState().value; val cs = MaterialTheme.colorScheme
     val gen by app.session.generation.collectAsState()
@@ -55,9 +57,10 @@ fun PersonScreen(userIdArg: String, name: String, server: String?, school: Strin
             } }.awaitAll().filterNotNull()
         }
     }
+    if (zoom && userId.isNotBlank()) ImageZoomDialog(app.repos.school.avatarUrl(userId, 512), shown) { zoom = false }
     PageScaffold(shown, schoolName, { nav.popBackStack() }, snackbarHost = { SnackbarHost(snack) }) { pad ->
         LazyColumn(Modifier.padding(horizontal = 16.dp), contentPadding = PaddingValues(top = pad.calculateTopPadding(), bottom = 32.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            item { Spacer(Modifier.height(8.dp)); PersonAvatar(shown, userId.takeIf { it.isNotBlank() }?.let { app.repos.school.avatarUrl(it, 256) }, 120.dp, key = userId.ifBlank { key }) }
+            item { Spacer(Modifier.height(8.dp)); Box(Modifier.clickable(enabled = userId.isNotBlank()) { zoom = true }) { PersonAvatar(shown, userId.takeIf { it.isNotBlank() }?.let { app.repos.school.avatarUrl(it, 256) }, 120.dp, key = userId.ifBlank { key }) } }
             item { Text(shown, style = MaterialTheme.typography.headlineSmall) }
             if (foreign) item { InfoBanner("Dieses Profil gehört zu einem anderen Server ($server). Chats können nur auf dem verbundenen Server gestartet werden.", warn = true) }
             if (isMe) item { InfoBanner("Das bist du.", Icons.Rounded.Person) }

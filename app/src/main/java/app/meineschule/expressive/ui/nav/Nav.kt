@@ -90,6 +90,7 @@ fun MainShell() {
             composable("person?u={u}&n={n}&b={b}&sc={sc}&sn={sn}&k={k}", listOf("u", "n", "b", "sc", "sn", "k").map { k -> navArgument(k) { type = NavType.StringType; nullable = true; defaultValue = null } }) { e ->
                 val a = e.arguments!!; PersonScreen(a.getString("u").orEmpty(), a.getString("n").orEmpty(), a.getString("b"), a.getString("sc"), a.getString("sn"), nav, a.getString("k"))
             }
+            composable("debuglog") { DebugLogScreen(nav) }
             composable("share") { ShareScreen(shared?.text, shared?.uris.orEmpty(), nav) }
             composable(Dest.Calendar.route) { CalendarScreen() }
             composable(Dest.More.route) { MoreScreen(nav) }
@@ -104,7 +105,7 @@ fun MainShell() {
             composable("profile") { ProfileScreen(nav) }
             composable("notifications") { NotificationsScreen(nav) }
             composable("links") { LinksScreen(onBack = { nav.popBackStack() }) }
-            composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }) }
+            composable("settings") { SettingsScreen(onBack = { nav.popBackStack() }, nav = nav) }
         }
     }
 }

@@ -39,7 +39,7 @@ class AuthInterceptor(private val auth: AuthManager, private val originHost: Str
 object Http {
     fun plain(): OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS).readTimeout(30, TimeUnit.SECONDS).writeTimeout(30, TimeUnit.SECONDS)
-        .followRedirects(false).followSslRedirects(false).build()
+        .addInterceptor(DebugInterceptor()).followRedirects(false).followSslRedirects(false).build()
 
     fun authed(base: OkHttpClient, auth: AuthManager, originHost: String): OkHttpClient =
         base.newBuilder().addInterceptor(AuthInterceptor(auth, originHost)).followRedirects(false).build()

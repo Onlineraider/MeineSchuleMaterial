@@ -1,5 +1,10 @@
 package app.meineschule.expressive.ui.components
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.clickable
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -104,8 +109,8 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
 @Composable fun EmptyState(icon: ImageVector, title: String, text: String? = null, modifier: Modifier = Modifier, action: (@Composable () -> Unit)? = null, error: Boolean = false) {
     val cs = MaterialTheme.colorScheme
     Column(modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 48.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(Modifier.size(136.dp, 116.dp), contentAlignment = Alignment.Center) { // dekorative Form-Komposition (je Zustand anders gefärbt)
-            Box(Modifier.align(Alignment.CenterStart).size(104.dp, 92.dp).clip(RoundedCornerShape(46.dp, 54.dp, 40.dp, 60.dp)).background(if (error) cs.errorContainer else cs.primaryContainer))
+        Box(Modifier.size(136.dp, 116.dp), contentAlignment = Alignment.Center) { // alles um die Mitte zentriert // dekorative Form-Komposition (je Zustand anders gefärbt)
+            Box(Modifier.align(Alignment.Center).size(104.dp, 92.dp).clip(RoundedCornerShape(46.dp, 54.dp, 40.dp, 60.dp)).background(if (error) cs.errorContainer else cs.primaryContainer))
             Box(Modifier.align(Alignment.TopEnd).size(44.dp).rotate(14f).clip(RoundedCornerShape(14.dp)).background(cs.tertiaryContainer))
             Box(Modifier.align(Alignment.BottomStart).size(24.dp).clip(CircleShape).background(cs.secondaryContainer))
             Icon(icon, null, Modifier.size(44.dp), tint = if (error) cs.onErrorContainer else cs.onPrimaryContainer)
@@ -125,14 +130,14 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
 /** Seite mit großer, kollabierender Überschrift (Display-Typografie). */
 @Composable fun PageScaffold(
     title: String, subtitle: String? = null, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {},
-    floatingActionButton: @Composable () -> Unit = {}, snackbarHost: @Composable () -> Unit = {}, content: @Composable (PaddingValues) -> Unit,
+    floatingActionButton: @Composable () -> Unit = {}, snackbarHost: @Composable () -> Unit = {}, onTitleClick: (() -> Unit)? = null, content: @Composable (PaddingValues) -> Unit,
 ) {
     val behavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
     Scaffold(
         modifier = Modifier.nestedScroll(behavior.nestedScrollConnection), containerColor = MaterialTheme.colorScheme.surface,
         topBar = {
             LargeTopAppBar(
-                title = { Column { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis); if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) } },
+                title = { Column(if (onTitleClick != null) Modifier.clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onTitleClick) else Modifier) { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis); if (subtitle != null) Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1) } },
                 navigationIcon = { if (onBack != null) IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Rounded.ArrowBack, "Zurück") } },
                 actions = actions, scrollBehavior = behavior,
                 colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface, scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer),
@@ -210,5 +215,20 @@ fun LazyListScope.groupedItems(count: Int, item: @Composable (Int) -> Unit) { it
     Row(modifier.padding(horizontal = 16.dp, vertical = 4.dp).fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(if (warn) cs.errorContainer else cs.tertiaryContainer).padding(14.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
         Icon(icon, null, tint = if (warn) cs.onErrorContainer else cs.onTertiaryContainer)
         Text(text, style = MaterialTheme.typography.bodyMedium, color = if (warn) cs.onErrorContainer else cs.onTertiaryContainer)
+    }
+}
+
+/** Profilbild groß ansehen (Doppeltipp/Zwei-Finger-Zoom, Tippen außerhalb schließt). */
+@Composable fun ImageZoomDialog(url: String, name: String, onDismiss: () -> Unit) {
+    var scale by remember { mutableFloatStateOf(1f) }; var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+    androidx.compose.ui.window.Dialog(onDismiss, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
+        Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .92f)).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onDismiss), contentAlignment = Alignment.Center) {
+            AsyncImage(ImageRequest.Builder(LocalContext.current).data(url).build(), name, Modifier.fillMaxWidth().aspectRatio(1f)
+                .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTransformGestures { _, pan, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 6f); offset = if (scale > 1f) offset + pan else androidx.compose.ui.geometry.Offset.Zero } }
+                .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTapGestures(onDoubleTap = { if (scale > 1f) { scale = 1f; offset = androidx.compose.ui.geometry.Offset.Zero } else scale = 3f }, onTap = { }) }
+                .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }, contentScale = androidx.compose.ui.layout.ContentScale.Fit)
+            Text(name, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.titleMedium)
+            IconButton(onDismiss, Modifier.align(Alignment.TopEnd).padding(16.dp)) { Icon(Icons.Rounded.Close, "Schließen", tint = androidx.compose.ui.graphics.Color.White) }
+        }
     }
 }
