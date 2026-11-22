@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.screens
 
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -68,7 +69,13 @@ fun CalendarScreen() {
                         (slideInHorizontally(spatial) { it / 3 * dir } + fadeIn(fade)) togetherWith (slideOutHorizontally(spatial) { -it / 3 * dir } + fadeOut(fade)) }
                 }, label = "calendar") { (shownMode, anchorDate) ->
                 val mMonth = YearMonth.from(anchorDate); val wStart = anchorDate
-                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+                if (shownMode == CalMode.Week) LaunchedEffect(selected, wStart) {
+                    val keys = (0..6L).map { wStart.plusDays(it) }.filter { d -> sorted.any { it.on(d) } }
+                    val target = keys.firstOrNull { it >= selected } ?: keys.lastOrNull()
+                    if (target != null && selected in wStart..wStart.plusDays(6)) { var idx = 1; for (d in keys) { if (d == target) break; idx += 1 + sorted.count { it.on(d) } }; listState.animateScrollToItem(idx) }
+                }
+                LazyColumn(state = listState, contentPadding = PaddingValues(bottom = 24.dp)) {
                     when (shownMode) {
                         CalMode.Month -> {
                             item { MonthGrid(mMonth, selected, events, onPick = { selected = it; if (YearMonth.from(it) != month) month = YearMonth.from(it) }) }
@@ -90,7 +97,10 @@ fun CalendarScreen() {
                             if (days.none { d -> events.any { it.on(d) } }) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Termine in dieser Woche", null) }
                             days.forEach { d ->
                                 val day = sorted.filter { it.on(d) }
-                                if (day.isNotEmpty()) { item { SectionTitle(Dates.dayLong(d) + if (d == LocalDate.now()) " · Heute" else "") }; itemsIndexed(day) { i, e -> EventRow(e, i, day.size) { detail = e } } }
+                                if (day.isNotEmpty()) {
+                                    item(key = "d$d") { SectionTitle(Dates.dayLong(d) + if (d == LocalDate.now()) " · Heute" else "", Modifier.animateItem()) }
+                                    itemsIndexed(day, key = { _, e -> "e$d${e.id}" }) { i, e -> EventRow(e, i, day.size, Modifier.animateItem()) { detail = e } }
+                                }
                             }
                         }
                         CalMode.Agenda -> {
@@ -110,23 +120,35 @@ fun CalendarScreen() {
 
 private enum class CalMode(val label: String) { Month("Monat"), Week("Woche"), Agenda("Agenda") }
 
-@Composable private fun EventRow(e: CalendarEvent, i: Int, n: Int, onClick: () -> Unit) {
+@Composable private fun EventRow(e: CalendarEvent, i: Int, n: Int, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    GroupedItem(i, n, e.title, supporting = listOfNotNull(if (e.allDay) "Ganztägig" else Dates.parse(e.start)?.let { Dates.time(it) }, e.location, e.category).joinToString(" · "),
+    GroupedItem(i, n, e.title, modifier = modifier, supporting = listOfNotNull(if (e.allDay) "Ganztägig" else Dates.parse(e.start)?.let { Dates.time(it) }, e.location, e.category).joinToString(" · "),
         leading = { TileIcon(Icons.Rounded.Event, container = if (e.open) cs.tertiaryContainer else cs.secondaryContainer) },
         trailing = { if (e.open) AssistChip(onClick = onClick, label = { Text("Antwort offen") }) else if (e.accepted) Icon(Icons.Rounded.CheckCircle, "Zugesagt", tint = cs.primary) else if (e.declined) Icon(Icons.Rounded.Cancel, "Abgesagt", tint = cs.error) },
         onClick = onClick)
 }
 
 /** Wochenleiste Mo–So mit Terminzähler je Tag. */
+/** Weicher Übergang der Tagesauswahl: Farbe, Textfarbe, Form und ein federndes „Aufploppen“. */
+private class SelAnim(val bg: androidx.compose.ui.graphics.Color, val fg: androidx.compose.ui.graphics.Color, val corner: Float, val scale: Float)
+@Composable private fun selAnim(sel: Boolean, idle: androidx.compose.ui.graphics.Color, idleFg: androidx.compose.ui.graphics.Color): SelAnim {
+    val cs = MaterialTheme.colorScheme; val m = MaterialTheme.motionScheme
+    val bg by androidx.compose.animation.animateColorAsState(if (sel) cs.primary else idle, m.defaultEffectsSpec(), label = "selBg")
+    val fg by androidx.compose.animation.animateColorAsState(if (sel) cs.onPrimary else idleFg, m.defaultEffectsSpec(), label = "selFg")
+    val corner by androidx.compose.animation.core.animateFloatAsState(if (sel) 30f else 50f, m.defaultSpatialSpec(), label = "selCorner")
+    val scale by androidx.compose.animation.core.animateFloatAsState(if (sel) 1f else .96f, m.fastSpatialSpec(), label = "selScale")
+    return SelAnim(bg, fg, corner, scale)
+}
+
 @Composable private fun WeekStrip(weekStart: LocalDate, selected: LocalDate, events: List<CalendarEvent>, onPick: (LocalDate) -> Unit) {
     val cs = MaterialTheme.colorScheme; val today = LocalDate.now()
     Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainer).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         (0..6L).forEach { o -> val d = weekStart.plusDays(o); val n = events.count { it.on(d) }; val sel = d == selected
-            Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(if (sel) cs.primary else if (d == today) cs.primaryContainer else androidx.compose.ui.graphics.Color.Transparent).clickable { onPick(d) }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, Dates.DE).take(2), style = MaterialTheme.typography.labelMedium, color = if (sel) cs.onPrimary else cs.onSurfaceVariant)
-                Text("${d.dayOfMonth}", style = MaterialTheme.typography.titleMedium, color = if (sel) cs.onPrimary else cs.onSurface)
-                Text(if (n > 0) "$n" else "·", style = MaterialTheme.typography.labelSmall, color = if (sel) cs.onPrimary else if (n > 0) cs.tertiary else cs.outline)
+            val a = selAnim(sel, if (d == today) cs.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, cs.onSurface)
+            Column(Modifier.weight(1f).graphicsLayer { scaleX = a.scale; scaleY = a.scale }.clip(RoundedCornerShape(a.corner.toInt().coerceIn(0, 50))).background(a.bg).clickable { onPick(d) }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, Dates.DE).take(2), style = MaterialTheme.typography.labelMedium, color = if (sel) a.fg else cs.onSurfaceVariant)
+                Text("${d.dayOfMonth}", style = MaterialTheme.typography.titleMedium, color = a.fg)
+                Text(if (n > 0) "$n" else "·", style = MaterialTheme.typography.labelSmall, color = if (sel) a.fg else if (n > 0) cs.tertiary else cs.outline)
             } }
     }
 }
@@ -140,9 +162,10 @@ private enum class CalMode(val label: String) { Month("Monat"), Week("Woche"), A
             val n = r * 7 + c - lead + 1
             if (n < 1 || n > month.lengthOfMonth()) Box(Modifier.weight(1f).aspectRatio(1f)) else {
                 val d = month.atDay(n); val has = events.any { it.on(d) }; val sel = d == selected
-                Box(Modifier.weight(1f).aspectRatio(1f).padding(2.dp).clip(if (sel) RoundedCornerShape(16.dp) else CircleShape).background(if (sel) cs.primary else if (d == today) cs.primaryContainer else androidx.compose.ui.graphics.Color.Transparent).clickable { onPick(d) }, contentAlignment = Alignment.Center) {
-                    Text("$n", color = if (sel) cs.onPrimary else cs.onSurface, style = MaterialTheme.typography.bodyMedium)
-                    if (has) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(5.dp).clip(CircleShape).background(if (sel) cs.onPrimary else cs.tertiary))
+                val a = selAnim(sel, if (d == today) cs.primaryContainer else androidx.compose.ui.graphics.Color.Transparent, cs.onSurface)
+                Box(Modifier.weight(1f).aspectRatio(1f).padding(2.dp).graphicsLayer { scaleX = a.scale; scaleY = a.scale }.clip(RoundedCornerShape(a.corner.toInt().coerceIn(0, 50))).background(a.bg).clickable { onPick(d) }, contentAlignment = Alignment.Center) {
+                    Text("$n", color = a.fg, style = MaterialTheme.typography.bodyMedium)
+                    if (has) Box(Modifier.align(Alignment.BottomCenter).padding(bottom = 5.dp).size(5.dp).clip(CircleShape).background(if (sel) a.fg else cs.tertiary))
                 }
             }
         } } }
