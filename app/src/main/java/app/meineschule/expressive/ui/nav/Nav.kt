@@ -60,7 +60,7 @@ fun MainShell() {
     NavigationSuiteScaffold(
         layoutType = layout,
         navigationSuiteItems = {
-            Dest.entries.forEach { d ->
+            Dest.entries.filter { it != Dest.Chats || school?.canUseMessenger != false }.forEach { d ->
                 item(
                     selected = top == d, onClick = { nav.goTop(d.route) },
                     label = { Text(d.label) },

@@ -34,6 +34,9 @@ class Prefs(ctx: Context) {
         "system" -> java.util.Locale.getDefault().language.lowercase().let { sys -> langs.firstOrNull { it.key.lowercase().take(2) == sys && sys != "de" }?.key }
         else -> langs.firstOrNull { it.key == pref }?.key
     }
+    /** Zwischengespeicherte Verfügbarkeit von Diensten je Schule („Mehr“ blendet ungenutzte aus). null = unbekannt → anzeigen. */
+    fun avail(school: String, mod: String): Boolean? = if (sp.contains("avail.$school.$mod")) sp.getBoolean("avail.$school.$mod", true) else null
+    fun setAvail(school: String, mod: String, v: Boolean) { sp.edit().putBoolean("avail.$school.$mod", v).apply() }
     val avatars = MutableStateFlow(sp.getBoolean("avatars", true))
     fun setShareBase(v: String) { shareBase.value = v; sp.edit().putString("shareBase", v).apply() }
     fun setAvatars(v: Boolean) { avatars.value = v; sp.edit().putBoolean("avatars", v).apply() }
