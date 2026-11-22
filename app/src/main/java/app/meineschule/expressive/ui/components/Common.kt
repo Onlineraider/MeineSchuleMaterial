@@ -1,5 +1,7 @@
 package app.meineschule.expressive.ui.components
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.ui.graphics.graphicsLayer
@@ -224,8 +226,8 @@ fun LazyListScope.groupedItems(count: Int, item: @Composable (Int) -> Unit) { it
     androidx.compose.ui.window.Dialog(onDismiss, androidx.compose.ui.window.DialogProperties(usePlatformDefaultWidth = false)) {
         Box(Modifier.fillMaxSize().background(androidx.compose.ui.graphics.Color.Black.copy(alpha = .92f)).clickable(interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null, onClick = onDismiss), contentAlignment = Alignment.Center) {
             AsyncImage(ImageRequest.Builder(LocalContext.current).data(url).build(), name, Modifier.fillMaxWidth().aspectRatio(1f)
-                .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTransformGestures { _, pan, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 6f); offset = if (scale > 1f) offset + pan else androidx.compose.ui.geometry.Offset.Zero } }
-                .pointerInput(Unit) { androidx.compose.foundation.gestures.detectTapGestures(onDoubleTap = { if (scale > 1f) { scale = 1f; offset = androidx.compose.ui.geometry.Offset.Zero } else scale = 3f }, onTap = { }) }
+                .pointerInput(Unit) { detectTransformGestures { _, pan, zoom, _ -> scale = (scale * zoom).coerceIn(1f, 6f); offset = if (scale > 1f) offset + pan else androidx.compose.ui.geometry.Offset.Zero } }
+                .pointerInput(Unit) { detectTapGestures(onDoubleTap = { if (scale > 1f) { scale = 1f; offset = androidx.compose.ui.geometry.Offset.Zero } else scale = 3f }, onTap = { }) }
                 .graphicsLayer { scaleX = scale; scaleY = scale; translationX = offset.x; translationY = offset.y }, contentScale = androidx.compose.ui.layout.ContentScale.Fit)
             Text(name, Modifier.align(Alignment.BottomCenter).padding(24.dp), color = androidx.compose.ui.graphics.Color.White, style = MaterialTheme.typography.titleMedium)
             IconButton(onDismiss, Modifier.align(Alignment.TopEnd).padding(16.dp)) { Icon(Icons.Rounded.Close, "Schließen", tint = androidx.compose.ui.graphics.Color.White) }
