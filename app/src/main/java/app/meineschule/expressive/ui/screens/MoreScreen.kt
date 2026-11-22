@@ -13,6 +13,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavHostController
 import app.meineschule.expressive.LocalApp
+import app.meineschule.expressive.core.ApiException
+import app.meineschule.expressive.core.ErrorKind
 import app.meineschule.expressive.ui.components.*
 
 private data class Entry(val title: String, val sub: String, val icon: ImageVector, val route: String)
@@ -29,7 +31,7 @@ fun MoreScreen(nav: NavHostController) {
         val t = tag ?: return@LaunchedEffect; val sc = s ?: return@LaunchedEffect
         suspend fun probe(m: String, f: suspend () -> Boolean) {
             try { val v = f(); avail[m] = v; app.prefs.setAvail(t, m, v) }
-            catch (e: Throwable) { val k = (e as? app.meineschule.expressive.core.ApiException)?.kind; if (k == app.meineschule.expressive.core.ErrorKind.Forbidden || k == app.meineschule.expressive.core.ErrorKind.NotFound || k == app.meineschule.expressive.core.ErrorKind.Unsupported) { avail[m] = false; app.prefs.setAvail(t, m, false) } }
+            catch (e: Throwable) { val k = (e as? ApiException)?.kind; if (k == ErrorKind.Forbidden || k == ErrorKind.NotFound || k == ErrorKind.Unsupported) { avail[m] = false; app.prefs.setAvail(t, m, false) } }
         }
         probe("media") { sc.canCreateMediaItems || app.repos.media.index().isNotEmpty() }
         probe("lost") { sc.canCreateLostAndFound || app.repos.lost.index().isNotEmpty() }
