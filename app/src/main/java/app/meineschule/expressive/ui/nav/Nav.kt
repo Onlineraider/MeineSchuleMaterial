@@ -111,5 +111,5 @@ fun MainShell() {
     }
 }
 
-/** Wechsel zu einem Hauptziel der Menüleiste – von überall (auch von Unterseiten) erreichbar, ohne Rückstapel aufzubauen. */
-fun androidx.navigation.NavController.goTop(route: String) = navigate(route) { popUpTo(graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = route != Dest.Home.route }
+/** Wechsel zu einem Hauptziel der Menüleiste – von überall (auch von Unterseiten) erreichbar, ohne Rückstapel aufzubauen. Kein Zustands-Restore: sonst landet man in der zuvor geöffneten Unterseite statt auf der Hauptseite des Tabs. */
+fun androidx.navigation.NavController.goTop(route: String) = navigate(route) { popUpTo(graph.findStartDestination().id) { saveState = false }; launchSingleTop = true; restoreState = false }
