@@ -96,7 +96,7 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
             is UiState.Ready -> if (isEmpty(s.data)) empty() else content(s.data)
         }
         }
-        PullToRefreshDefaults.LoadingIndicator(state = pull, isRefreshing = refreshing, modifier = Modifier.align(Alignment.TopCenter), threshold = 140.dp)
+        PullToRefreshDefaults.LoadingIndicator(state = pull, isRefreshing = refreshing, modifier = Modifier.align(Alignment.TopCenter))
     }
 }
 
