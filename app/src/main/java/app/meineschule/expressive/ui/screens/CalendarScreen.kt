@@ -41,29 +41,76 @@ fun CalendarScreen() {
     val gen by app.session.generation.collectAsState(); val school by app.session.school.collectAsState()
     val loader = rememberLoader(gen) { app.repos.calendar.index() }
     var month by remember { mutableStateOf(YearMonth.now()) }; var selected by remember { mutableStateOf(LocalDate.now()) }
+    var mode by remember { mutableStateOf(CalMode.Month) }
     var detail by remember { mutableStateOf<CalendarEvent?>(null) }
     val snack = remember { SnackbarHostState() }
+    val weekStart = Dates.weekStart(selected)
+    fun step(n: Long) { when (mode) { CalMode.Month -> { month = month.plusMonths(n); selected = month.atDay(minOf(selected.dayOfMonth, month.lengthOfMonth())) }; CalMode.Week -> { selected = selected.plusWeeks(n); month = YearMonth.from(selected) }; CalMode.Agenda -> {} } }
+    val subtitle = when (mode) { CalMode.Month -> month.month.getDisplayName(TextStyle.FULL, Dates.DE) + " ${month.year}"; CalMode.Week -> "KW ${Dates.isoWeek(weekStart)} · ${Dates.range(weekStart, weekStart.plusDays(6))}"; CalMode.Agenda -> "Kommende Termine" }
 
-    PageScaffold(title = "Kalender", subtitle = month.month.getDisplayName(TextStyle.FULL, Dates.DE) + " ${month.year}", snackbarHost = { SnackbarHost(snack) }, actions = {
-        IconButton(onClick = { month = month.minusMonths(1) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Vorheriger Monat") }
-        IconButton(onClick = { month = month.plusMonths(1) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Nächster Monat") }
+    PageScaffold(title = "Kalender", subtitle = subtitle, snackbarHost = { SnackbarHost(snack) }, actions = {
+        if (mode != CalMode.Agenda) { IconButton(onClick = { step(-1) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowLeft, "Zurück") }; IconButton(onClick = { step(1) }) { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, "Weiter") } }
         TextButton(onClick = { month = YearMonth.now(); selected = LocalDate.now() }) { Text("Heute") }
     }) { pad ->
-        StateHost(loader, Modifier.padding(top = pad.calculateTopPadding())) { events ->
-            LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                item { MonthGrid(month, selected, events, onPick = { selected = it; if (YearMonth.from(it) != month) month = YearMonth.from(it) }) }
-                val day = events.filter { it.on(selected) }.sortedBy { Dates.parse(it.start) }
-                item { SectionTitle(Dates.dayLong(selected)) }
-                if (day.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Termine für diesen Tag", "Wähle einen anderen Tag im Kalender.") }
-                itemsIndexed(day) { i, e ->
-                    GroupedItem(i, day.size, e.title, supporting = listOfNotNull(if (e.allDay) "Ganztägig" else Dates.parse(e.start)?.let { Dates.time(it) }, e.location, e.category).joinToString(" · "),
-                        leading = { TileIcon(Icons.Rounded.Event, container = if (e.open) cs.tertiaryContainer else cs.secondaryContainer) },
-                        trailing = { if (e.open) AssistChip(onClick = { detail = e }, label = { Text("Antwort offen") }) else if (e.accepted) Icon(Icons.Rounded.CheckCircle, "Zugesagt", tint = cs.primary) else if (e.declined) Icon(Icons.Rounded.Cancel, "Abgesagt", tint = cs.error) }, onClick = { detail = e })
+        Column(Modifier.padding(top = pad.calculateTopPadding())) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), horizontalArrangement = Arrangement.Center) {
+                SingleChoiceSegmentedButtonRow { CalMode.entries.forEachIndexed { i, m -> SegmentedButton(mode == m, { mode = m }, SegmentedButtonDefaults.itemShape(i, CalMode.entries.size)) { Text(m.label) } } }
+            }
+            StateHost(loader, Modifier.weight(1f)) { events ->
+                val sorted = events.sortedBy { Dates.parse(it.start) }
+                LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
+                    when (mode) {
+                        CalMode.Month -> {
+                            item { MonthGrid(month, selected, events, onPick = { selected = it; if (YearMonth.from(it) != month) month = YearMonth.from(it) }) }
+                            val day = sorted.filter { it.on(selected) }
+                            item { SectionTitle(Dates.dayLong(selected)) }
+                            if (day.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Termine für diesen Tag", "Wähle einen anderen Tag im Kalender.") }
+                            itemsIndexed(day) { i, e -> EventRow(e, i, day.size) { detail = e } }
+                        }
+                        CalMode.Week -> {
+                            item { WeekStrip(weekStart, selected, events) { selected = it } }
+                            val days = (0..6L).map { weekStart.plusDays(it) }
+                            if (days.none { d -> events.any { it.on(d) } }) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Termine in dieser Woche", null) }
+                            days.forEach { d ->
+                                val day = sorted.filter { it.on(d) }
+                                if (day.isNotEmpty()) { item { SectionTitle(Dates.dayLong(d) + if (d == LocalDate.now()) " · Heute" else "") }; itemsIndexed(day) { i, e -> EventRow(e, i, day.size) { detail = e } } }
+                            }
+                        }
+                        CalMode.Agenda -> {
+                            val today = LocalDate.now(); val upcoming = sorted.filter { (it.days()?.endInclusive ?: today) >= today }
+                            if (upcoming.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine kommenden Termine", null) }
+                            val groups = upcoming.groupBy { e -> maxOf(e.days()?.start ?: today, today) }.toSortedMap()
+                            groups.forEach { (d, day) -> item { SectionTitle(Dates.dayLong(d) + if (d == today) " · Heute" else if (d == today.plusDays(1)) " · Morgen" else "") }; itemsIndexed(day) { i, e -> EventRow(e, i, day.size) { detail = e } } }
+                        }
+                    }
                 }
             }
         }
     }
     detail?.let { e -> EventSheet(e, school?.languages.orEmpty(), onDismiss = { detail = null }, onConfirmed = { detail = null; loader.reload(); scope.launch { app.session.refreshState(); snack.showSnackbar("Termin bestätigt") } }) }
+}
+
+private enum class CalMode(val label: String) { Month("Monat"), Week("Woche"), Agenda("Agenda") }
+
+@Composable private fun EventRow(e: CalendarEvent, i: Int, n: Int, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    GroupedItem(i, n, e.title, supporting = listOfNotNull(if (e.allDay) "Ganztägig" else Dates.parse(e.start)?.let { Dates.time(it) }, e.location, e.category).joinToString(" · "),
+        leading = { TileIcon(Icons.Rounded.Event, container = if (e.open) cs.tertiaryContainer else cs.secondaryContainer) },
+        trailing = { if (e.open) AssistChip(onClick = onClick, label = { Text("Antwort offen") }) else if (e.accepted) Icon(Icons.Rounded.CheckCircle, "Zugesagt", tint = cs.primary) else if (e.declined) Icon(Icons.Rounded.Cancel, "Abgesagt", tint = cs.error) },
+        onClick = onClick)
+}
+
+/** Wochenleiste Mo–So mit Terminzähler je Tag. */
+@Composable private fun WeekStrip(weekStart: LocalDate, selected: LocalDate, events: List<CalendarEvent>, onPick: (LocalDate) -> Unit) {
+    val cs = MaterialTheme.colorScheme; val today = LocalDate.now()
+    Row(Modifier.padding(horizontal = 12.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainerLow).padding(8.dp), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        (0..6L).forEach { o -> val d = weekStart.plusDays(o); val n = events.count { it.on(d) }; val sel = d == selected
+            Column(Modifier.weight(1f).clip(RoundedCornerShape(18.dp)).background(if (sel) cs.primary else if (d == today) cs.primaryContainer else androidx.compose.ui.graphics.Color.Transparent).clickable { onPick(d) }.padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(d.dayOfWeek.getDisplayName(TextStyle.SHORT, Dates.DE).take(2), style = MaterialTheme.typography.labelMedium, color = if (sel) cs.onPrimary else cs.onSurfaceVariant)
+                Text("${d.dayOfMonth}", style = MaterialTheme.typography.titleMedium, color = if (sel) cs.onPrimary else cs.onSurface)
+                Text(if (n > 0) "$n" else "·", style = MaterialTheme.typography.labelSmall, color = if (sel) cs.onPrimary else if (n > 0) cs.tertiary else cs.outline)
+            } }
+    }
 }
 
 @Composable private fun MonthGrid(month: YearMonth, selected: LocalDate, events: List<CalendarEvent>, onPick: (LocalDate) -> Unit) {
