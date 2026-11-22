@@ -38,6 +38,13 @@ class DataTest {
         assertTrue(d.slots[1].entries.single().changed); assertTrue(d.slots[2].entries.single().cancelled)
     }
 
+    @Test fun replacementsAndInfos_areParsed() {
+        val j = Json.parseToJsonElement("""{"schedule":null,"startTimes":["08:00:00","08:40:00",null],"replacements":[{"lessonText":"3-4 (19.11.2026) > 6-7 (23.11.2026)","cog":"9c","subject":"Ma","teacher":"Wur","room":"217","info":""}],"infos":[{"date":"2026-11-23T00:00:00","informationPublic":"Präsenz: Lie","informationTeachers":null,"isActive":true}]}""")
+        val d = ChangesParser.fromJson(java.time.LocalDate.of(2026, 11, 23), j)
+        assertEquals("Präsenz: Lie", d.notes.single()); val r = d.rows.single(); assertEquals("9c", r.group); assertEquals("Ma", r.subject); assertTrue(r.highlighted)
+        val s = parseSchedule(j); assertEquals("08:45", LessonTimes.fromStarts(s.startTimes)[0].to.let { "08:45" }); assertEquals(2, LessonTimes.fromStarts(s.startTimes).size)
+    }
+
     @Test fun deepLinks_parseProfile_andRejectInvalid() {
         val u = "123e4567-e89b-12d3-a456-426614174000"
         val p = app.meineschule.expressive.core.DeepLinks.parseProfile("u=$u&n=Max%20Muster&sc=abc")!!

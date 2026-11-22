@@ -47,7 +47,7 @@ fun ScheduleScreen() {
     val groups = rememberLoader(gen) { runCatching { app.repos.school.groups() }.getOrDefault(emptyList()) }
     val cl = (classes.state as? UiState.Ready)?.data.orEmpty(); val gr = (groups.state as? UiState.Ready)?.data.orEmpty()
     val label = when (target?.first) { "S" -> students.firstOrNull { it.id == target!!.second }?.name; "C" -> cl.firstOrNull { it.id == target!!.second }?.name?.let { "Klasse $it" }; "G" -> gr.firstOrNull { it.id == target!!.second }?.name; else -> null } ?: "Vertretungen"
-    val loader = rememberLoader(gen, weekStart, target, school != null) { app.repos.schedule(weekStart, target?.takeIf { it.first == "S" }?.second, target?.takeIf { it.first != "S" }?.second) }
+    val loader = rememberLoader(gen, weekStart, target, school != null, cl.size, gr.size) { app.repos.schedule(weekStart, target?.takeIf { it.first == "S" }?.second, when (target?.first) { "C" -> cl.firstOrNull { it.id == target!!.second }?.name; "G" -> gr.firstOrNull { it.id == target!!.second }?.name; else -> null }) }
     var pickerOpen by remember { mutableStateOf(false) }
     // Vertretungen des gewählten Tages (Portal-Seite); schlägt das Lesen fehl, bleibt der normale Plan ohne Einbettung
     val changes = rememberLoader(gen, selected, school != null) { runCatching { app.repos.changes(selected) } }
@@ -85,14 +85,16 @@ fun ScheduleScreen() {
                 (0..4).forEach { i -> val d = weekStart.plusDays(i.toLong()); Tab(selected = d == selected, onClick = { selected = d }, text = { Column(horizontalAlignment = Alignment.CenterHorizontally) { Text(Dates.weekday(d), fontWeight = FontWeight.Bold); Text(d.dayOfMonth.toString(), style = MaterialTheme.typography.labelSmall) } }) }
             }
             if (target == null) { SubstitutionView(changeResult, myNames.distinct(), Modifier.weight(1f)); return@Column }
-            StateHost(loader, Modifier.weight(1f), isEmpty = { it.days.isEmpty() }, empty = { EmptyState(Icons.Rounded.EventAvailable, "Kein Stundenplan", "Für diese Woche liegt kein Stundenplan vor.") }) { sched ->
+            StateHost(loader, Modifier.weight(1f), isEmpty = { it.days.isEmpty() && it.infos.isEmpty() }, empty = { EmptyState(Icons.Rounded.EventAvailable, "Kein Stundenplan", "Für diese Woche liegt kein Stundenplan vor.") }) { sched ->
                 val ch = sched.changes()
                 Column {
                     if (ch.isNotEmpty()) { val nx = ch.count { it.third.cancelled }; InfoBanner("Diese Woche: " + listOfNotNull(nx.takeIf { it > 0 }?.let { "$it Entfall" + if (it > 1) "e" else "" }, (ch.size - nx).takeIf { it > 0 }?.let { "$it Änderung" + if (it > 1) "en" else "" }).joinToString(" · "), Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
                     val rel = changeResult?.getOrNull()?.rows?.filter { ChangesParser.relevant(it, planNames) }.orEmpty()
                     if (rel.isNotEmpty() && view == PlanView.Day) InfoBanner("Vertretungen für ${planNames.joinToString()} am ${Dates.dayShort(selected)}: ${rel.size} Änderung" + if (rel.size > 1) "en" else "", Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
                     val dayShown = sched.days.firstOrNull { it.date == selected }.let { if (rel.isNotEmpty()) ChangesParser.overlay(it, selected, rel) else it }
-                    if (view == PlanView.Day) DayView(dayShown, selected, times) { d, sl, e -> detailOf = Triple(d, sl, e) } else WeekView(sched, today, times)
+                    val eff = if (app.prefs.lessonTimes == null && sched.startTimes.isNotEmpty()) LessonTimes.fromStarts(sched.startTimes) else times
+                    if (view == PlanView.Day) sched.infoFor(selected).forEach { i -> listOfNotNull(i.public, i.teachers?.let { "Lehrkräfte: $it" }).forEach { t -> InfoBanner(t, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
+                    if (view == PlanView.Day) DayView(dayShown, selected, eff) { d, sl, e -> detailOf = Triple(d, sl, e) } else WeekView(sched, today, eff)
                 }
             }
         }

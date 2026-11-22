@@ -51,10 +51,10 @@ class PortalClient(private val api: ApiClient, base: OkHttpClient, private val o
     }
 
     /** JSON der Stundenplanwoche, die [date] enthält. [studentId] optional (Schüleransicht). */
-    suspend fun scheduleJson(school: String, date: LocalDate, studentId: String?, cog: String? = null): JsonElement {
+    suspend fun scheduleJson(school: String, date: LocalDate, studentId: String?, cog: String? = null, view: String? = null): JsonElement {
         suspend fun fetch(): JsonElement {
             val url = "$origin/${Urls.seg(school)}/schedule".toHttpUrl().newBuilder().addQueryParameter("handler", "Schedule").addQueryParameter("date", date.toString())
-                .addQueryParameter("cog", cog.orEmpty()).addQueryParameter("t", "").addQueryParameter("s", studentId.orEmpty()).addQueryParameter("view", "").build()
+                .addQueryParameter("cog", cog.orEmpty()).addQueryParameter("t", "").addQueryParameter("s", studentId.orEmpty()).addQueryParameter("view", view.orEmpty()).build()
             getFollowing(url).use { r ->
                 val text = r.body?.string().orEmpty()
                 val isJson = r.header("Content-Type")?.contains("json", true) == true

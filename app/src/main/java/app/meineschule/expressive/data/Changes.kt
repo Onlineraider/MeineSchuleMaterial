@@ -10,6 +10,29 @@ data class ChangeRow(val hours: String, val group: String, val subject: String, 
 data class DayChanges(val date: LocalDate, val notes: List<String>, val rows: List<ChangeRow>)
 
 object ChangesParser {
+    private fun prim(e: kotlinx.serialization.json.JsonElement?): String? = when (e) { is kotlinx.serialization.json.JsonPrimitive -> e.contentOrNull?.takeIf { it != "null" && it != "-1" }; is kotlinx.serialization.json.JsonArray -> e.mapNotNull { prim(it) }.joinToString(", ").ifBlank { null }; else -> null }
+    private val kotlinx.serialization.json.JsonPrimitive.contentOrNull get() = if (this is kotlinx.serialization.json.JsonNull) null else content
+
+    /** `replacements`-Einträge: Feldnamen werden tolerant zugeordnet (Stunde/Klasse/Fach/Lehrer/Raum/Info); unbekannte Felder landen in „Info“. */
+    fun fromJson(date: LocalDate, json: kotlinx.serialization.json.JsonElement): DayChanges {
+        val root = app.meineschule.expressive.core.J(json)
+        val notes = root.arr("infos").filter { it.bool("isActive") != false }.filter { (it.str("date") ?: "").take(10).let { d -> d.isEmpty() || d == date.toString() } }.flatMap { listOfNotNull(it.str("informationPublic"), it.str("informationTeachers")?.let { t -> "Lehrkräfte: $t" }) }.filter { it.isNotBlank() }
+        val rows = root.arr("replacements").mapNotNull { it.raw as? kotlinx.serialization.json.JsonObject }.map { o ->
+            val used = mutableSetOf<String>()
+            fun pick(vararg keys: String): String { for ((k, v) in o) { val kl = k.lowercase(); if (keys.any { kl.contains(it) } && k !in used) { prim(v)?.let { used += k; return it } } }; return "" }
+            val hours = pick("lessontext", "stunde", "lesson", "hour", "period", "caption", "time")
+            val group = pick("cog", "class", "klasse", "group", "gruppe")
+            val subject = pick("subject", "fach", "course")
+            val teacher = pick("teacher", "lehrer")
+            val room = pick("room", "raum")
+            val rest = o.filter { (k, v) -> k !in used && v is kotlinx.serialization.json.JsonPrimitive && prim(v) != null && !k.lowercase().let { kl -> kl == "id" || kl.endsWith("id") || kl == "date" || kl.startsWith("is") || kl.startsWith("has") } }.map { it.value.let { v -> prim(v)!! } }
+            val info = pick("info", "remark", "comment", "note", "text", "bemerk").ifBlank { rest.joinToString(" · ") }
+            val flag = o.any { (k, v) -> (v as? kotlinx.serialization.json.JsonPrimitive)?.content == "true" && Regex("change|replace|move|cancel|subst|vertret|entf", RegexOption.IGNORE_CASE).containsMatchIn(k) }
+            ChangeRow(hours, group, subject, teacher, room, info, flag || listOf(hours, teacher, room).any { it.contains('>') })
+        }
+        return DayChanges(date, notes.distinct(), rows)
+    }
+
     private val DE = DateTimeFormatter.ofPattern("dd.MM.yyyy")
     private fun clean(s: String) = s.replace(Regex("\\s+"), " ").trim()
 

@@ -23,7 +23,9 @@ data class ScheduleDay(val date: LocalDate, val slots: List<Slot>) {
     val activeSlots: List<Slot> get() { val a = slots.indexOfFirst { it.entries.isNotEmpty() }; val b = slots.indexOfLast { it.entries.isNotEmpty() }; return if (a < 0) emptyList() else slots.subList(a, b + 1) }
     val lessonCount: Int get() = slots.count { s -> s.entries.any { !it.cancelled } }
 }
-data class Schedule(val days: List<ScheduleDay>) {
+data class ScheduleInfo(val date: LocalDate?, val public: String?, val teachers: String?)
+data class Schedule(val days: List<ScheduleDay>, val startTimes: List<String> = emptyList(), val infos: List<ScheduleInfo> = emptyList()) {
+    fun infoFor(d: LocalDate) = infos.filter { it.date == d }
     fun changes(): List<Triple<ScheduleDay, Slot, LessonEntry>> = days.flatMap { d -> d.slots.flatMap { s -> s.entries.filter { it.cancelled || it.changed }.map { Triple(d, s, it) } } }
 }
 
@@ -31,6 +33,8 @@ object LessonTimes {
     val DEFAULT = listOf("07:50" to "08:35", "08:40" to "09:25", "09:45" to "10:30", "10:35" to "11:20", "11:40" to "12:25", "12:30" to "13:15", "13:35" to "14:20", "14:25" to "15:10", "15:15" to "16:00", "16:05" to "16:50").map { TimeRange(it.first, it.second) }
     fun parse(s: String?): List<TimeRange> = runCatching { s?.split(';')?.mapNotNull { p -> p.split('-').takeIf { it.size == 2 && Regex("\\d\\d:\\d\\d").matches(it[0]) && Regex("\\d\\d:\\d\\d").matches(it[1]) }?.let { TimeRange(it[0], it[1]) } }.orEmpty() }.getOrDefault(emptyList()).ifEmpty { DEFAULT }
     fun serialize(l: List<TimeRange>) = l.joinToString(";") { "${it.from}-${it.to}" }
+    /** Portal liefert nur Startzeiten ("08:00:00"); Ende = Start + 45 Min. (Dauer in den Einstellungen anpassbar über die Zeiten). */
+    fun fromStarts(starts: List<String>): List<TimeRange> = starts.map { it.take(5) }.filter { Regex("\\d\\d:\\d\\d").matches(it) }.map { st -> val m = toMin(st) + 45; TimeRange(st, "%02d:%02d".format(m / 60, m % 60)) }
     /** (aktuelle, nächste) Stunde für den Tag. */
     fun current(day: ScheduleDay?, times: List<TimeRange>, now: java.time.LocalTime = java.time.LocalTime.now()): Pair<Slot?, Slot?> {
         val m = now.hour * 60 + now.minute; var cur: Slot? = null; var next: Slot? = null
@@ -64,7 +68,7 @@ private fun slotTime(slot: JsonElement): TimeRange? {
 
 fun parseSchedule(json: JsonElement?): Schedule {
     val root = J(json); val sched = root.obj("schedule") ?: root.obj("Schedule") ?: root
-    return Schedule(sched.arr("days").mapNotNull { d ->
+    return Schedule(startTimes = root.strings("startTimes"), infos = root.arr("infos").filter { it.bool("isActive") != false }.map { ScheduleInfo(Dates.date(it.str("date")?.take(10)), it.str("informationPublic")?.takeIf { x -> x.isNotBlank() }, it.str("informationTeachers")?.takeIf { x -> x.isNotBlank() }) }, days = sched.arr("days").mapNotNull { d ->
         val date = Dates.date((d.str("d") ?: d.str("date"))?.take(10)) ?: return@mapNotNull null
         ScheduleDay(date, d.arr("l").mapIndexed { i, slot ->
             val raw = slot.raw
