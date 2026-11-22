@@ -7,6 +7,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -43,25 +44,20 @@ fun MediaScreen(nav: NavHostController) {
             OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), placeholder = { Text("Beiträge durchsuchen") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, singleLine = true, shape = RoundedCornerShape(50))
             StateHost(items, Modifier.weight(1f), isEmpty = { it.isEmpty() }, empty = { EmptyState(Icons.Rounded.PermMedia, "Aktuell sind keine Medien vorhanden", "Neue Beiträge deiner Schule erscheinen hier.") }) { all ->
                 val list = all.filter { q.isBlank() || it.title.contains(q, true) || it.text?.contains(q, true) == true } // clientseitige Suche (kein dokumentierter Such-Parameter)
-                LazyColumn(contentPadding = PaddingValues(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) { items(list, key = { it.id }) { m -> MediaCard(m) { nav.navigate("media/${m.id}") } } }
+                LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) { itemsIndexed(list, key = { _, m -> m.id }) { i, m -> MediaRow(i, list.size, m) { nav.navigate("media/${m.id}") } } }
             }
         }
     }
 }
 
-@Composable private fun MediaCard(m: MediaItem, onClick: () -> Unit) {
-    val app = LocalApp.current; val cs = MaterialTheme.colorScheme; val ctx = LocalContext.current
-    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp, bottomEnd = 28.dp, bottomStart = 10.dp)).background(cs.surfaceContainer).clickable(onClick = onClick)) {
-        Box(Modifier.fillMaxWidth().height(170.dp).background(cs.tertiaryContainer)) {
-            SubcomposeAsyncImage(ImageRequest.Builder(ctx).data(app.repos.media.imageUrl(m.id)).build(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop, loading = { SkeletonBox(Modifier.fillMaxSize()) }, error = { Icon(Icons.Rounded.Image, null, Modifier.align(Alignment.Center).size(40.dp), tint = cs.onTertiaryContainer) })
-            if (m.likeCount > 0) SuggestionChip(onClick = {}, label = { Text("♥ ${m.likeCount}") }, modifier = Modifier.padding(12.dp).align(Alignment.TopStart))
-        }
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text(m.title, style = MaterialTheme.typography.titleLarge); Dates.parse(m.from ?: m.created)?.let { Text(Dates.dayShort(it.toLocalDate()) + (m.creator?.let { c -> " · $c" } ?: ""), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant) }
-            m.text?.let { Text(it, style = MaterialTheme.typography.bodyMedium, maxLines = 3, color = cs.onSurfaceVariant) }
-            if (m.confirmReceive && !m.confirmed) AssistChip(onClick = onClick, label = { Text("Bestätigung offen") })
-        }
-    }
+@Composable private fun MediaRow(i: Int, n: Int, m: MediaItem, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme; val open = m.confirmReceive && !m.confirmed
+    GroupedItem(i, n, m.title, supporting = listOfNotNull(Dates.parse(m.from ?: m.created)?.let { Dates.dayShort(it.toLocalDate()) }, m.creator).joinToString(" · ").ifBlank { null },
+        leading = { TileIcon(Icons.Rounded.Description) }, unread = open,
+        trailing = {
+            if (open) AssistChip(onClick = onClick, label = { Text("Bestätigen") }, leadingIcon = { Icon(Icons.Rounded.Check, null, Modifier.size(18.dp)) })
+            else if (m.likeCount > 0) Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) { Icon(Icons.Rounded.Favorite, null, Modifier.size(16.dp), tint = if (m.liked) cs.error else cs.onSurfaceVariant); Text("${m.likeCount}", style = MaterialTheme.typography.labelLarge, color = cs.onSurfaceVariant) }
+        }, onClick = onClick)
 }
 
 @Composable

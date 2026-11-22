@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.screens
 
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +38,7 @@ fun HipScreen(onBack: () -> Unit) {
     val reports = rememberLoader(gen, student?.id) { student?.let { runCatching { app.repos.absence.reports(it.id) }.getOrDefault(emptyList()) } ?: emptyList() }
     val cats = (absIndex.state as? UiState.Ready)?.data?.categories.orEmpty()
     var editing by remember { mutableStateOf<AbsenceReport?>(null) }; var creating by remember { mutableStateOf(false) }; var deleting by remember { mutableStateOf<AbsenceReport?>(null) }
+    var detail by remember { mutableStateOf<HipRow?>(null) }
     val snack = remember { SnackbarHostState() }; val scope = rememberCoroutineScope()
     val canReport = school?.canCreateAbsences == true && student != null
     PageScaffold(title = "Home.InfoPoint", subtitle = student?.name, onBack = onBack, snackbarHost = { SnackbarHost(snack) },
@@ -56,10 +58,11 @@ fun HipScreen(onBack: () -> Unit) {
                             ts.forEach { t ->
                                 if (t.title.isNotBlank()) item { SectionTitle(t.title) }
                                 itemsIndexed(t.rows) { i, r ->
-                                    val gi = if (cur == HipClass.Grd) t.head.indexOfFirst { Regex("note|zensur|bewertung", RegexOption.IGNORE_CASE).containsMatchIn(it) } else -1
-                                    val cells = r.indices.filter { it != gi && r[it].isNotBlank() }
-                                    GroupedItem(i, t.rows.size, cells.firstOrNull()?.let { r[it] } ?: "–", supporting = cells.drop(1).joinToString("\n") { c -> t.head.getOrNull(c)?.takeIf { it.isNotBlank() }?.let { h -> "$h: ${r[c]}" } ?: r[c] }.ifBlank { null },
-                                        trailing = if (gi >= 0 && r.getOrNull(gi)?.isNotBlank() == true) ({ GradeBadge(r[gi]) }) else null)
+                                    val row = HipRow.of(cur, t, r)
+                                    GroupedItem(i, t.rows.size, row.title, supporting = row.body, meta = null,
+                                        leading = if (row.grade != null) ({ GradeBadge(row.grade) }) else null,
+                                        trailing = { row.date?.let { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) } },
+                                        onClick = { detail = row })
                                 }
                             }
                             if (cur == HipClass.Oth && d.text.isNotEmpty()) { item { SectionTitle("Weitere Informationen") }; itemsIndexed(d.text) { i, t -> GroupedItem(i, d.text.size, t) } }
@@ -69,8 +72,48 @@ fun HipScreen(onBack: () -> Unit) {
             }
         }
     }
+    detail?.let { HipDetailSheet(it) { detail = null } }
     if ((creating || editing != null) && student != null) AbsenceForm(student, absIndex, editing, onDismiss = { creating = false; editing = null }, onSaved = { creating = false; editing = null; reports.reload(); scope.launch { snack.showSnackbar("Gespeichert") } }, onDelete = { deleting = editing; editing = null })
     deleting?.let { r -> ConfirmDialog("Meldung löschen?", "Die Abwesenheitsmeldung wird gelöscht, soweit du dazu berechtigt bist.", "Löschen", { scope.launch { try { app.repos.absence.remove(r.studentId, r.id!!); reports.reload() } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } }; deleting = null }, { deleting = null }) }
+}
+
+/** Eine Zeile des Home.InfoPoint, geordnet: Note/Hauptinhalt oben, darunter Beschreibung, Datum zuletzt. */
+private data class HipRow(val title: String, val body: String?, val date: String?, val category: String, val grade: String?, val fields: List<Pair<String, String>>) {
+    companion object {
+        private val DATE = Regex("^\\d{1,2}\\.\\d{1,2}\\.(\\d{2}|\\d{4})$")
+        fun of(cls: HipClass, t: HipTable, r: List<String>): HipRow {
+            val heads = r.indices.map { t.head.getOrNull(it).orEmpty().trim() }
+            val di = r.indices.firstOrNull { DATE.matches(r[it].trim()) || heads[it].contains("datum", true) && r[it].isNotBlank() } ?: -1
+            val gi = if (cls == HipClass.Grd) heads.indexOfFirst { Regex("note|zensur|bewertung", RegexOption.IGNORE_CASE).containsMatchIn(it) } else -1
+            val rest = r.indices.filter { it != di && it != gi && r[it].isNotBlank() }
+            val date = r.getOrNull(di)?.takeIf { di >= 0 }
+            val fields = buildList {
+                if (gi >= 0 && r[gi].isNotBlank()) add("Note" to r[gi])
+                rest.forEach { add((heads[it].ifBlank { "Info" }) to r[it]) }
+                date?.let { add("Datum" to it) }
+            }
+            return if (gi >= 0 && r[gi].isNotBlank()) HipRow("Note ${r[gi]}", rest.joinToString("\n") { r[it] }.ifBlank { null }, date, t.title, r[gi], fields)
+            else HipRow(rest.firstOrNull()?.let { r[it] } ?: date ?: "–", rest.drop(1).joinToString("\n") { c -> heads[c].takeIf { it.isNotBlank() }?.let { h -> "$h: ${r[c]}" } ?: r[c] }.ifBlank { null }, date, t.title, null, fields)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun HipDetailSheet(r: HipRow, onDismiss: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    ModalBottomSheet(onDismiss, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                r.grade?.let { GradeBadge(it) }
+                Column { Text(r.title, style = MaterialTheme.typography.headlineSmall); if (r.category.isNotBlank()) Text(r.category, style = MaterialTheme.typography.titleSmall, color = cs.primary) }
+            }
+            r.fields.filter { it.first != "Note" }.forEach { (k, v) ->
+                Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainerHigh).padding(14.dp)) {
+                    Text(k, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant); Text(v, style = MaterialTheme.typography.bodyLarge)
+                }
+            }
+        }
+    }
 }
 
 private val DE_DATE = java.time.format.DateTimeFormatter.ofPattern("d.M.[yyyy][yy]")

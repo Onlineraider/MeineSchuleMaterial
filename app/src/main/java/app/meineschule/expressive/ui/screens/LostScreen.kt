@@ -50,8 +50,7 @@ fun LostScreen(onBack: () -> Unit) {
                                 if (it.hasAttachment) Box(Modifier.size(56.dp).clip(RoundedCornerShape(16.dp))) { AsyncImage(app.repos.lost.imageUrl(it.id, 192), "Foto von ${it.name}", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
                                 else TileIcon(Icons.Rounded.Inventory2)
                             },
-                            trailing = { if (it.canEdit) Row { IconButton({ editing = it }) { Icon(Icons.Rounded.Edit, "Bearbeiten") }; IconButton({ toDelete = it }) { Icon(Icons.Rounded.Delete, "Löschen") } } },
-                            onClick = if (it.hasAttachment) ({ zoom = it }) else null)
+                            onClick = { zoom = it })
                     }
                 }
             }
@@ -59,8 +58,28 @@ fun LostScreen(onBack: () -> Unit) {
     }
     if (creating || editing != null) LostEditor(editing, onDismiss = { creating = false; editing = null }, onDone = { creating = false; editing = null; items.reload(); scope.launch { snack.showSnackbar("Gespeichert") } })
     toDelete?.let { d -> ConfirmDialog("Eintrag löschen?", "„${d.name}“ wird dauerhaft entfernt.", "Löschen", { scope.launch { try { app.repos.lost.remove(d.id); items.update { l -> l.filterNot { x -> x.id == d.id } } } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } } }, { toDelete = null }, destructive = true) }
-    zoom?.let { z -> AlertDialog(onDismissRequest = { zoom = null }, confirmButton = { TextButton({ zoom = null }) { Text("Schließen") } }, title = { Text(z.name) },
-        text = { AsyncImage(app.repos.lost.imageUrl(z.id, 1024), "Foto von ${z.name}", Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)), contentScale = ContentScale.Fit) }) }
+    zoom?.let { z -> LostDetailSheet(z, onDismiss = { zoom = null }, onEdit = { zoom = null; editing = z }, onDelete = { zoom = null; toDelete = z }) }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable private fun LostDetailSheet(z: LostItem, onDismiss: () -> Unit, onEdit: () -> Unit, onDelete: () -> Unit) {
+    val app = LocalApp.current; val cs = MaterialTheme.colorScheme
+    ModalBottomSheet(onDismiss, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
+        Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            if (z.hasAttachment) AsyncImage(app.repos.lost.imageUrl(z.id, 1024), "Foto von ${z.name}", Modifier.fillMaxWidth().heightIn(max = 360.dp).clip(RoundedCornerShape(24.dp)), contentScale = ContentScale.Fit)
+            Text(z.name, style = MaterialTheme.typography.headlineMedium)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                AssistChip(onClick = {}, label = { Text(if (z.found) "Gefunden" else "Vermisst") }, leadingIcon = { Icon(if (z.found) Icons.Rounded.Inventory2 else Icons.Rounded.Search, null, Modifier.size(18.dp)) })
+                if (!z.isActive) AssistChip(onClick = {}, label = { Text("Inaktiv") })
+            }
+            @Composable fun field(k: String, v: String?) { if (!v.isNullOrBlank()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainerHigh).padding(14.dp)) { Text(k, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant); Text(v, style = MaterialTheme.typography.bodyLarge) } }
+            field(if (z.found) "Fundort" else "Zuletzt gesehen / Ort", z.location); field("Beschreibung", z.text); field("Gemeldet von", z.creator)
+            if (z.canEdit) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                FilledTonalButton(onEdit, Modifier.weight(1f), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Edit, null); Spacer(Modifier.width(8.dp)); Text("Bearbeiten") }
+                OutlinedButton(onDelete, Modifier.weight(1f), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Delete, null); Spacer(Modifier.width(8.dp)); Text("Löschen") }
+            }
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
