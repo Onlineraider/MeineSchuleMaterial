@@ -55,21 +55,21 @@ fun HomeScreen(nav: NavHostController) {
             item {
                 val st = schedule.state
                 val day = (st as? UiState.Ready)?.data?.days?.firstOrNull { it.date == today }
-                Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MsdShapes.Hero).background(cs.primaryContainer).clickable { nav.goTop("plan") }.padding(24.dp)) {
+                Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MsdShapes.Hero).background(cs.secondaryContainer).clickable { nav.goTop("plan") }.padding(24.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Rounded.AutoStories, null, tint = cs.onPrimaryContainer); Spacer(Modifier.width(8.dp))
-                        Text("Dein Tag", style = MaterialTheme.typography.titleMedium, color = cs.onPrimaryContainer)
+                        Icon(Icons.Rounded.AutoStories, null, tint = cs.onSecondaryContainer); Spacer(Modifier.width(8.dp))
+                        Text("Dein Tag", style = MaterialTheme.typography.titleMedium, color = cs.onSecondaryContainer)
                     }
                     Spacer(Modifier.height(12.dp))
                     when {
                         st is UiState.Loading -> { SkeletonBox(Modifier.fillMaxWidth(.6f).height(36.dp)); Spacer(Modifier.height(8.dp)); SkeletonBox(Modifier.fillMaxWidth(.4f).height(18.dp)) }
-                        st is UiState.Failed -> Text("Stundenplan gerade nicht verfügbar", style = MaterialTheme.typography.titleMedium, color = cs.onPrimaryContainer)
-                        day == null || day.activeSlots.isEmpty() -> Text("Heute ist kein Unterricht eingetragen", style = MaterialTheme.typography.headlineSmall, color = cs.onPrimaryContainer)
+                        st is UiState.Failed -> Text("Stundenplan gerade nicht verfügbar", style = MaterialTheme.typography.titleMedium, color = cs.onSecondaryContainer)
+                        day == null || day.activeSlots.isEmpty() -> Text("Heute ist kein Unterricht eingetragen", style = MaterialTheme.typography.headlineSmall, color = cs.onSecondaryContainer)
                         else -> {
                             // Lehrplan-Uhrzeiten/Räume sind im Portal-JSON nicht belegt → keine „In 12 Minuten“-Behauptungen.
                             val first = day.activeSlots.firstNotNullOfOrNull { s -> s.entries.firstOrNull { !it.cancelled } }
-                            Text(first?.subject ?: "Alle Stunden entfallen", style = MaterialTheme.typography.displaySmall, color = cs.onPrimaryContainer)
-                            Text("${day.lessonCount} Unterrichtsstunden heute", style = MaterialTheme.typography.bodyLarge, color = cs.onPrimaryContainer)
+                            Text(first?.subject ?: "Alle Stunden entfallen", style = MaterialTheme.typography.displaySmall, color = cs.onSecondaryContainer)
+                            Text("${day.lessonCount} Unterrichtsstunden heute", style = MaterialTheme.typography.bodyLarge, color = cs.onSecondaryContainer)
                             val cancelled = day.slots.sumOf { s -> s.entries.count { it.cancelled } }
                             if (cancelled > 0) { Spacer(Modifier.height(12.dp)); AssistChip(onClick = {}, label = { Text(if (cancelled == 1) "1 Stunde entfällt" else "$cancelled Stunden entfallen") }, leadingIcon = { Icon(Icons.Rounded.EventBusy, null, Modifier.size(18.dp)) }) }
                             Spacer(Modifier.height(12.dp))
@@ -91,8 +91,8 @@ fun HomeScreen(nav: NavHostController) {
                     items(quick.size) { i ->
                         val (label, icon, route) = quick[i]
                         val shape = listOf(RoundedCornerShape(28.dp), RoundedCornerShape(28.dp, 12.dp, 28.dp, 12.dp), RoundedCornerShape(50), RoundedCornerShape(12.dp, 28.dp, 12.dp, 28.dp))[i % 4] // wechselnde Formen
-                        val (bg, fg) = listOf(cs.secondaryContainer to cs.onSecondaryContainer, cs.tertiaryContainer to cs.onTertiaryContainer, cs.surfaceContainerHigh to cs.onSurface)[i % 3]
-                        Column(Modifier.size(104.dp).clip(shape).background(bg).clickable { if (Dest.entries.any { it.route == route }) nav.goTop(route) else nav.navigate(route) }.padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                        val (bg, fg) = listOf(cs.tertiaryContainer to cs.onTertiaryContainer, cs.surfaceContainerHigh to cs.onSurface, cs.primaryContainer to cs.onPrimaryContainer)[i % 3]
+                        Column(Modifier.size(width = 128.dp, height = 104.dp).clip(shape).background(bg).clickable { if (Dest.entries.any { it.route == route }) nav.goTop(route) else nav.navigate(route) }.padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
                             Icon(icon, null, tint = fg); Text(label, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
                         }
                     }

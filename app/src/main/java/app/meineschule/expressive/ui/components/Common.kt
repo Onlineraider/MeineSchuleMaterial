@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.components
 
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.background
@@ -172,9 +173,15 @@ val LocalToolbarExpanded = androidx.compose.runtime.compositionLocalOf<() -> Boo
     trailing: (@Composable () -> Unit)? = null, unread: Boolean = false, strike: Boolean = false, container: Color = MaterialTheme.colorScheme.surfaceContainer, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null,
 ) {
     val shape = MsdShapes.listShape(index, count); val cs = MaterialTheme.colorScheme
-    val base = modifier.padding(horizontal = 16.dp).padding(bottom = 2.dp).fillMaxWidth().clip(shape).background(container)
+    // Sanfter Einstieg (gestaffelt, nur die ersten Einträge) und federndes Drück-Feedback – Material-3-Expressive-Bewegung.
+    val src = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }; val pressed by src.collectIsPressedAsState()
+    val press by androidx.compose.animation.core.animateFloatAsState(if (pressed) .97f else 1f, MaterialTheme.motionScheme.fastSpatialSpec(), label = "press")
+    val enter = remember { androidx.compose.animation.core.Animatable(if (index < 6) 0f else 1f) }
+    LaunchedEffect(Unit) { if (enter.value < 1f) { kotlinx.coroutines.delay(index * 40L); enter.animateTo(1f, androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) } }
+    val base = modifier.graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 28.dp.toPx(); scaleX = press; scaleY = press }
+        .padding(horizontal = 16.dp).padding(bottom = 2.dp).fillMaxWidth().clip(shape).background(container)
     Row(
-        (if (onClick != null) base.combinedClickable(onClick = onClick, onLongClick = onLongClick) else base).heightIn(min = 72.dp).padding(horizontal = 16.dp, vertical = 12.dp),
+        (if (onClick != null) base.combinedClickable(interactionSource = src, indication = androidx.compose.material3.ripple(), onClick = onClick, onLongClick = onLongClick) else base).heightIn(min = 72.dp).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         leading?.invoke()

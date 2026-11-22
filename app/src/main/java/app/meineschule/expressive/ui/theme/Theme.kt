@@ -90,6 +90,11 @@ fun MsdTheme(mode: Prefs.Mode, dynamic: Boolean, seed: Prefs.Seed, content: @Com
         if (dynamic && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) { if (dark) dynamicDarkColorScheme(ctx) else dynamicLightColorScheme(ctx) } // echtes Monet
         else (if (dark) TealDark else TealLight).rotated(seed.hueShift)
     }
+    // Statusleisten-/Navigationsleisten-Symbole folgen dem App-Design (nicht dem Systemmodus): sonst z. B. weiße Uhrzeit auf hellem Hintergrund.
+    val view = androidx.compose.ui.platform.LocalView.current
+    if (!view.isInEditMode) androidx.compose.runtime.SideEffect {
+        (view.context as? android.app.Activity)?.window?.let { w -> androidx.core.view.WindowCompat.getInsetsController(w, view).apply { isAppearanceLightStatusBars = !dark; isAppearanceLightNavigationBars = !dark } }
+    }
     MaterialExpressiveTheme(
         colorScheme = scheme,
         motionScheme = MotionScheme.expressive(), // Spring-basierte, ausdrucksstarke Bewegung für alle M3-Komponenten
