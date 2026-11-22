@@ -86,9 +86,9 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
     loader: Loader<T>, modifier: Modifier = Modifier, isEmpty: (T) -> Boolean = { false }, empty: @Composable () -> Unit = {},
     skeleton: @Composable () -> Unit = { SkeletonList() }, content: @Composable (T) -> Unit,
 ) {
-    val refreshing = loader.refreshing && loader.state is UiState.Ready; val pull = rememberPullToRefreshState()
+    val toolbarExpanded = LocalToolbarExpanded.current; val refreshing = loader.refreshing && loader.state is UiState.Ready; val pull = rememberPullToRefreshState()
     // Hohe Schwelle (140 dp): normales Hochscrollen/Flingen zum Listenanfang löst nicht versehentlich „Neu laden“ aus.
-    Box(modifier.pullToRefresh(refreshing, pull, enabled = loader.state is UiState.Ready, threshold = 140.dp) { loader.reload() }) {
+    Box(modifier.pullToRefresh(refreshing, pull, enabled = loader.state is UiState.Ready && toolbarExpanded(), threshold = 140.dp) { loader.reload() }) {
         Box(Modifier.fillMaxSize()) {
         when (val s = loader.state) {
             UiState.Loading -> skeleton()
@@ -136,6 +136,8 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
 }
 
 // ---------------- Seiten-Gerüst ----------------
+/** Ist die große Überschrift ganz aufgeklappt? Nur dann darf Pull-to-Refresh ziehen – sonst klappt der Zug nach unten zuerst die Überschrift wieder auf. */
+val LocalToolbarExpanded = androidx.compose.runtime.compositionLocalOf<() -> Boolean> { { true } }
 /** Seite mit großer, kollabierender Überschrift (Display-Typografie). */
 @Composable fun PageScaffold(
     title: String, subtitle: String? = null, onBack: (() -> Unit)? = null, actions: @Composable RowScope.() -> Unit = {},
@@ -152,7 +154,8 @@ class Loader<T>(private val scope: CoroutineScope, private val load: suspend () 
                 colors = TopAppBarDefaults.largeTopAppBarColors(containerColor = MaterialTheme.colorScheme.surface, scrolledContainerColor = MaterialTheme.colorScheme.surfaceContainer),
             )
         },
-        floatingActionButton = floatingActionButton, snackbarHost = snackbarHost, content = content,
+        floatingActionButton = floatingActionButton, snackbarHost = snackbarHost,
+        content = { pad -> androidx.compose.runtime.CompositionLocalProvider(LocalToolbarExpanded provides { behavior.state.collapsedFraction == 0f }) { content(pad) } },
     )
 }
 
