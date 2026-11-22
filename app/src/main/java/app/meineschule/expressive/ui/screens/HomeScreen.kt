@@ -1,5 +1,7 @@
 package app.meineschule.expressive.ui.screens
 
+import app.meineschule.expressive.ui.nav.Dest
+import app.meineschule.expressive.ui.nav.goTop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -53,7 +55,7 @@ fun HomeScreen(nav: NavHostController) {
             item {
                 val st = schedule.state
                 val day = (st as? UiState.Ready)?.data?.days?.firstOrNull { it.date == today }
-                Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MsdShapes.Hero).background(cs.primaryContainer).clickable { nav.navigate("plan") }.padding(24.dp)) {
+                Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(MsdShapes.Hero).background(cs.primaryContainer).clickable { nav.goTop("plan") }.padding(24.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Rounded.AutoStories, null, tint = cs.onPrimaryContainer); Spacer(Modifier.width(8.dp))
                         Text("Dein Tag", style = MaterialTheme.typography.titleMedium, color = cs.onPrimaryContainer)
@@ -90,7 +92,7 @@ fun HomeScreen(nav: NavHostController) {
                         val (label, icon, route) = quick[i]
                         val shape = listOf(RoundedCornerShape(28.dp), RoundedCornerShape(28.dp, 12.dp, 28.dp, 12.dp), RoundedCornerShape(50), RoundedCornerShape(12.dp, 28.dp, 12.dp, 28.dp))[i % 4] // wechselnde Formen
                         val (bg, fg) = listOf(cs.secondaryContainer to cs.onSecondaryContainer, cs.tertiaryContainer to cs.onTertiaryContainer, cs.surfaceContainerHigh to cs.onSurface)[i % 3]
-                        Column(Modifier.size(104.dp).clip(shape).background(bg).clickable { nav.navigate(route) }.padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.size(104.dp).clip(shape).background(bg).clickable { if (Dest.entries.any { it.route == route }) nav.goTop(route) else nav.navigate(route) }.padding(14.dp), verticalArrangement = Arrangement.SpaceBetween) {
                             Icon(icon, null, tint = fg); Text(label, style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1)
                         }
                     }
@@ -98,7 +100,7 @@ fun HomeScreen(nav: NavHostController) {
             }
 
             // ---- Nächste Termine ----
-            item { SectionTitle("Nächste Termine", trailing = { TextButton(onClick = { nav.navigate("calendar") }) { Text("Alle") } }) }
+            item { SectionTitle("Nächste Termine", trailing = { TextButton(onClick = { nav.goTop("calendar") }) { Text("Alle") } }) }
             item {
                 when (val s = events.state) {
                     UiState.Loading -> SkeletonList(2)
@@ -106,14 +108,14 @@ fun HomeScreen(nav: NavHostController) {
                     is UiState.Ready -> {
                         val next = s.data.filter { (Dates.date(it.start) ?: today) >= today }.sortedBy { Dates.parse(it.start) }.take(3)
                         if (next.isEmpty()) EmptyState(Icons.Rounded.EventAvailable, "Keine Termine", "Aktuell stehen keine Termine an.", Modifier.padding(vertical = 0.dp))
-                        else Column { next.forEachIndexed { i, e -> GroupedItem(i, next.size, e.title, supporting = listOfNotNull(Dates.parse(e.start)?.let { d -> if (e.allDay) Dates.dayShort(d.toLocalDate()) else "${Dates.dayShort(d.toLocalDate())} · ${Dates.time(d)}" }, e.location).joinToString(" · "), leading = { TileIcon(Icons.Rounded.Event) }, onClick = { nav.navigate("calendar") }) } }
+                        else Column { next.forEachIndexed { i, e -> GroupedItem(i, next.size, e.title, supporting = listOfNotNull(Dates.parse(e.start)?.let { d -> if (e.allDay) Dates.dayShort(d.toLocalDate()) else "${Dates.dayShort(d.toLocalDate())} · ${Dates.time(d)}" }, e.location).joinToString(" · "), leading = { TileIcon(Icons.Rounded.Event) }, onClick = { nav.goTop("calendar") }) } }
                     }
                 }
             }
 
             // ---- Aktuelle Nachrichten ----
             if (school?.canUseMessenger != false) {
-                item { SectionTitle("Aktuelle Nachrichten", trailing = { TextButton(onClick = { nav.navigate("chats") }) { Text("Alle") } }) }
+                item { SectionTitle("Aktuelle Nachrichten", trailing = { TextButton(onClick = { nav.goTop("chats") }) { Text("Alle") } }) }
                 item {
                     when (val s = chats.state) {
                         UiState.Loading -> SkeletonList(2)

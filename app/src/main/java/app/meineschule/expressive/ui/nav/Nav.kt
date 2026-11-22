@@ -55,13 +55,14 @@ fun MainShell() {
         }
     }
 
-    val layout = if (top != null) NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo()) else NavigationSuiteType.None
+    val immersive = route == null || route.startsWith("chat/") || route.startsWith("newchat") || route.startsWith("share") || route.startsWith("person") || route.startsWith("debuglog") || route.startsWith("lock") || route.startsWith("login")
+    val layout = if (!immersive) NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(currentWindowAdaptiveInfo()) else NavigationSuiteType.None
     NavigationSuiteScaffold(
         layoutType = layout,
         navigationSuiteItems = {
             Dest.entries.forEach { d ->
                 item(
-                    selected = top == d, onClick = { nav.navigate(d.route) { popUpTo(nav.graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = true } },
+                    selected = top == d, onClick = { nav.goTop(d.route) },
                     label = { Text(d.label) },
                     icon = {
                         val badge = when (d) { Dest.Chats -> state?.unreadChatMessageCount?.takeIf { it > 0 }?.toString(); Dest.Calendar -> state?.notConfirmedCalendar?.size?.takeIf { it > 0 }?.let { "" }; else -> null }
@@ -109,3 +110,6 @@ fun MainShell() {
         }
     }
 }
+
+/** Wechsel zu einem Hauptziel der Menüleiste – von überall (auch von Unterseiten) erreichbar, ohne Rückstapel aufzubauen. */
+fun androidx.navigation.NavController.goTop(route: String) = navigate(route) { popUpTo(graph.findStartDestination().id) { saveState = true }; launchSingleTop = true; restoreState = route != Dest.Home.route }
