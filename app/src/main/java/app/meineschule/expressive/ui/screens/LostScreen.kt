@@ -46,7 +46,7 @@ fun LostScreen(onBack: () -> Unit) {
                 val list = all.filter { it.found == (tab == 0) && it.isActive }
                 LazyColumn(contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)) {
                     itemsIndexed(list, key = { _, it -> it.id }) { i, it ->
-                        GroupedItem(i, list.size, it.name, supporting = listOf(it.location, it.text).filter { s -> s.isNotBlank() }.joinToString(" · "),
+                        GroupedItem(i, list.size, it.name, modifier = Modifier.animateItem(), supporting = listOf(it.location, it.text).filter { s -> s.isNotBlank() }.joinToString(" · "),
                             leading = {
                                 if (it.hasAttachment) Box(Modifier.size(56.dp).clip(RoundedCornerShape(16.dp))) { AsyncImage(app.repos.lost.imageUrl(it.id, 192), "Foto von ${it.name}", Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
                                 else TileIcon(Icons.Rounded.Inventory2)

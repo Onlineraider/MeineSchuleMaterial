@@ -44,7 +44,7 @@ fun MediaScreen(nav: NavHostController) {
             OutlinedTextField(q, { q = it }, Modifier.fillMaxWidth().padding(16.dp, 8.dp), placeholder = { Text("Beiträge durchsuchen") }, leadingIcon = { Icon(Icons.Rounded.Search, null) }, singleLine = true, shape = RoundedCornerShape(50))
             StateHost(items, Modifier.weight(1f), isEmpty = { it.isEmpty() }, empty = { EmptyState(Icons.Rounded.PermMedia, "Aktuell sind keine Medien vorhanden", "Neue Beiträge deiner Schule erscheinen hier.") }) { all ->
                 val list = all.filter { q.isBlank() || it.title.contains(q, true) || it.text?.contains(q, true) == true } // clientseitige Suche (kein dokumentierter Such-Parameter)
-                LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) { itemsIndexed(list, key = { _, m -> m.id }) { i, m -> MediaRow(i, list.size, m) { nav.navigate("media/${m.id}") } } }
+                LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) { itemsIndexed(list, key = { _, m -> m.id }) { i, m -> Box(Modifier.animateItem()) { MediaRow(i, list.size, m) { nav.navigate("media/${m.id}") } } } }
             }
         }
     }

@@ -68,7 +68,7 @@ fun ChatsScreen(nav: NavHostController) {
                 if (list.isEmpty()) EmptyState(Icons.Rounded.SearchOff, "Keine Treffer", "Für diesen Filter gibt es keine Chats.")
                 else LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
                     itemsIndexed(list, key = { _, c -> c.id.ifBlank { c.name } }) { i, c ->
-                        Box {
+                        Box(Modifier.animateItem()) {
                             GroupedItem(i, list.size, c.name, supporting = c.teaser, unread = c.unread > 0,
                                 leading = { if (c.infoChannel) TileIcon(Icons.Rounded.Campaign) else PersonAvatar(c.name, key = c.id) },
                                 trailing = { Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {

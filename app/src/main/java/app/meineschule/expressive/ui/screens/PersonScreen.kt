@@ -79,7 +79,7 @@ fun PersonScreen(userIdArg: String, name: String, server: String?, school: Strin
                     UiState.Loading -> item { Row(Modifier.fillMaxWidth().padding(8.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) { CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp); Text("Suche in deinen Chats …", color = cs.onSurfaceVariant) } }
                     is UiState.Failed -> item { Text("Chats konnten nicht geprüft werden.", color = cs.onSurfaceVariant) }
                     is UiState.Ready -> if (st.data.isEmpty()) item { Text("Noch keine gemeinsamen Chats.", Modifier.fillMaxWidth(), color = cs.onSurfaceVariant) }
-                        else itemsIndexed(st.data) { i, c -> GroupedItem(i, st.data.size, c.name, supporting = c.teaser, unread = c.unread > 0, leading = { PersonAvatar(c.name, key = c.id) }, onClick = { nav.navigate("chat/${c.id}") }) }
+                        else item { Column { st.data.forEachIndexed { i, c -> GroupedItem(i, st.data.size, c.name, supporting = c.teaser, unread = c.unread > 0, leading = { PersonAvatar(c.name, key = c.id) }, onClick = { nav.navigate("chat/${c.id}") }, inset = 0.dp) } } }
                 }
             }
         }

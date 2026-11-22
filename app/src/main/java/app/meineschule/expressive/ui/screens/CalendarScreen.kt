@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -58,18 +59,34 @@ fun CalendarScreen() {
             }
             StateHost(loader, Modifier.weight(1f)) { events ->
                 val sorted = events.sortedBy { Dates.parse(it.start) }
+                val anchor = when (mode) { CalMode.Month -> month.atDay(1); CalMode.Week -> weekStart; CalMode.Agenda -> LocalDate.of(2000, 1, 1) }
+                val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>(); val spatialF = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+                val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>(); val fastFade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                AnimatedContent(targetState = mode to anchor, transitionSpec = {
+                    if (initialState.first != targetState.first) (fadeIn(fade) + scaleIn(spatialF, .94f)) togetherWith fadeOut(fade)
+                    else { val dir = if (targetState.second >= initialState.second) 1 else -1
+                        (slideInHorizontally(spatial) { it / 3 * dir } + fadeIn(fade)) togetherWith (slideOutHorizontally(spatial) { -it / 3 * dir } + fadeOut(fade)) }
+                }, label = "calendar") { (shownMode, anchorDate) ->
+                val mMonth = YearMonth.from(anchorDate); val wStart = anchorDate
                 LazyColumn(contentPadding = PaddingValues(bottom = 24.dp)) {
-                    when (mode) {
+                    when (shownMode) {
                         CalMode.Month -> {
-                            item { MonthGrid(month, selected, events, onPick = { selected = it; if (YearMonth.from(it) != month) month = YearMonth.from(it) }) }
+                            item { MonthGrid(mMonth, selected, events, onPick = { selected = it; if (YearMonth.from(it) != month) month = YearMonth.from(it) }) }
                             val day = sorted.filter { it.on(selected) }
-                            item { SectionTitle(Dates.dayLong(selected)) }
-                            if (day.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Termine für diesen Tag", "Wähle einen anderen Tag im Kalender.") }
-                            itemsIndexed(day) { i, e -> EventRow(e, i, day.size) { detail = e } }
+                            item {
+                                AnimatedContent(selected, transitionSpec = { (fadeIn(fade) + slideInVertically(spatial) { it / 8 }) togetherWith fadeOut(fastFade) using SizeTransform(clip = false) }, label = "day") { d ->
+                                    val dayEvents = sorted.filter { it.on(d) }
+                                    Column {
+                                        SectionTitle(Dates.dayLong(d))
+                                        if (dayEvents.isEmpty()) EmptyState(Icons.Rounded.EventAvailable, "Keine Termine für diesen Tag", "Wähle einen anderen Tag im Kalender.")
+                                        dayEvents.forEachIndexed { i, e -> EventRow(e, i, dayEvents.size) { detail = e } }
+                                    }
+                                }
+                            }
                         }
                         CalMode.Week -> {
-                            item { WeekStrip(weekStart, selected, events) { selected = it } }
-                            val days = (0..6L).map { weekStart.plusDays(it) }
+                            item { WeekStrip(wStart, selected, events) { selected = it } }
+                            val days = (0..6L).map { wStart.plusDays(it) }
                             if (days.none { d -> events.any { it.on(d) } }) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Termine in dieser Woche", null) }
                             days.forEach { d ->
                                 val day = sorted.filter { it.on(d) }
@@ -83,6 +100,7 @@ fun CalendarScreen() {
                             groups.forEach { (d, day) -> item { SectionTitle(Dates.dayLong(d) + if (d == today) " · Heute" else if (d == today.plusDays(1)) " · Morgen" else "") }; itemsIndexed(day) { i, e -> EventRow(e, i, day.size) { detail = e } } }
                         }
                     }
+                }
                 }
             }
         }

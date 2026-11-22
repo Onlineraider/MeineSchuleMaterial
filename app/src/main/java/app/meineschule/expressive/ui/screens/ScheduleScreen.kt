@@ -1,5 +1,6 @@
 package app.meineschule.expressive.ui.screens
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.verticalScroll
@@ -92,7 +93,15 @@ fun ScheduleScreen() {
                     val dayShown = sched.days.firstOrNull { it.date == selected }
                     val eff = if (app.prefs.lessonTimes == null && sched.startTimes.isNotEmpty()) LessonTimes.fromStarts(sched.startTimes) else times
                     if (view == PlanView.Day) sched.infoFor(selected).forEach { i -> listOfNotNull(i.public, i.teachers?.let { "Lehrkräfte: $it" }).forEach { t -> InfoBanner(t, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
-                    if (view == PlanView.Day) DayView(dayShown, selected, eff) { d, sl, e -> detailOf = Triple(d, sl, e) } else WeekView(sched, today, eff)
+                    val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>(); val spatialF = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
+                    val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>(); val fastFade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
+                    AnimatedContent(targetState = view to selected, transitionSpec = {
+                        if (initialState.first != targetState.first) (fadeIn(fade) + scaleIn(spatialF, .94f)) togetherWith fadeOut(fastFade)
+                        else { val dir = if (targetState.second >= initialState.second) 1 else -1
+                            (slideInHorizontally(spatial) { it / 3 * dir } + fadeIn(fade)) togetherWith (slideOutHorizontally(spatial) { -it / 3 * dir } + fadeOut(fastFade)) }
+                    }, label = "plan") { (v, d) ->
+                        if (v == PlanView.Day) DayView(sched.days.firstOrNull { it.date == d }, d, eff) { dd, sl, e -> detailOf = Triple(dd, sl, e) } else WeekView(sched, today, eff)
+                    }
                 }
             }
         }

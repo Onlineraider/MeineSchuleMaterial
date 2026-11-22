@@ -28,7 +28,7 @@ fun ProtocolsScreen(nav: NavHostController) {
         StateHost(list, Modifier.padding(top = pad.calculateTopPadding()), isEmpty = { it.isEmpty() }, empty = { EmptyState(Icons.Rounded.Description, "Keine Protokolle", "Für dich sind keine Protokolle freigegeben.") }) { l ->
             LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)) {
                 itemsIndexed(l, key = { _, it -> it.id }) { i, p ->
-                    GroupedItem(i, l.size, p.title, supporting = Dates.date(p.date)?.let { Dates.dayLong(it) }, leading = { TileIcon(Icons.Rounded.Description) },
+                    GroupedItem(i, l.size, p.title, modifier = Modifier.animateItem(), supporting = Dates.date(p.date)?.let { Dates.dayLong(it) }, leading = { TileIcon(Icons.Rounded.Description) },
                         trailing = { Icon(Icons.AutoMirrored.Rounded.KeyboardArrowRight, null) }, onClick = { nav.navigate("protocol/${p.id}") })
                 }
             }

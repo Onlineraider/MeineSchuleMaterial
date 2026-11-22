@@ -170,7 +170,7 @@ val LocalToolbarExpanded = androidx.compose.runtime.compositionLocalOf<() -> Boo
 /** Gruppierte Listenzeile: äußere Ecken groß, innere klein (Material-3-Expressive-„Segmented List“). */
 @Composable fun GroupedItem(
     index: Int, count: Int, title: String, modifier: Modifier = Modifier, supporting: String? = null, meta: String? = null, leading: (@Composable () -> Unit)? = null,
-    trailing: (@Composable () -> Unit)? = null, unread: Boolean = false, strike: Boolean = false, container: Color = MaterialTheme.colorScheme.surfaceContainer, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null,
+    trailing: (@Composable () -> Unit)? = null, unread: Boolean = false, strike: Boolean = false, container: Color = MaterialTheme.colorScheme.surfaceContainer, onClick: (() -> Unit)? = null, onLongClick: (() -> Unit)? = null, inset: androidx.compose.ui.unit.Dp = 16.dp,
 ) {
     val shape = MsdShapes.listShape(index, count); val cs = MaterialTheme.colorScheme
     // Sanfter Einstieg (gestaffelt, nur die ersten Einträge) und federndes Drück-Feedback – Material-3-Expressive-Bewegung.
@@ -179,7 +179,7 @@ val LocalToolbarExpanded = androidx.compose.runtime.compositionLocalOf<() -> Boo
     val enter = remember { androidx.compose.animation.core.Animatable(if (index < 6) 0f else 1f) }
     LaunchedEffect(Unit) { if (enter.value < 1f) { kotlinx.coroutines.delay(index * 40L); enter.animateTo(1f, androidx.compose.animation.core.tween(420, easing = androidx.compose.animation.core.FastOutSlowInEasing)) } }
     val base = modifier.graphicsLayer { alpha = enter.value; translationY = (1f - enter.value) * 28.dp.toPx(); scaleX = press; scaleY = press }
-        .padding(horizontal = 16.dp).padding(bottom = 2.dp).fillMaxWidth().clip(shape).background(container)
+        .padding(horizontal = inset).padding(bottom = 2.dp).fillMaxWidth().clip(shape).background(container)
     Row(
         (if (onClick != null) base.combinedClickable(interactionSource = src, indication = androidx.compose.material3.ripple(), onClick = onClick, onLongClick = onLongClick) else base).heightIn(min = 72.dp).padding(horizontal = 16.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp),
