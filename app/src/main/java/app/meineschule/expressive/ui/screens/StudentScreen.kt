@@ -24,11 +24,16 @@ import kotlinx.coroutines.launch
  * Eigenschaften (studentProperties) sind in der App nur lesbar; Änderungen laufen über die Web-Oberfläche mit One-Time-Token.
  */
 @Composable
-fun StudentScreen(id: String, onBack: () -> Unit) {
+fun StudentScreen(id: String, nav: androidx.navigation.NavHostController) {
+    val onBack = { nav.popBackStack(); Unit }
     val app = LocalApp.current; val ctx = LocalContext.current; val scope = rememberCoroutineScope(); val gen by app.session.generation.collectAsState()
     val school by app.session.school.collectAsState()
     val info = rememberLoader(gen, id) { app.repos.school.student(id) }
     val snack = remember { SnackbarHostState() }
+    fun key(p: app.meineschule.expressive.data.Person): String? = p.userId?.let { "U:USER:$it" } ?: p.id?.takeIf { p.type != null }?.let { "P:${p.type!!.uppercase()}:$it" }
+    fun open(p: app.meineschule.expressive.data.Person) { val k = key(p) ?: return; nav.navigate("person?k=${Urls.seg(k)}&n=${Urls.seg(p.name)}" + (p.userId?.let { "&u=${Urls.seg(it)}" } ?: "")) }
+    fun chat(p: app.meineschule.expressive.data.Person) { val k = key(p) ?: return; scope.launch { try { val cid = app.repos.messenger.create(null, listOf("$k=${p.name}"), reuse = true); if (cid != null) nav.navigate("chat/$cid") } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } } }
+    val chatBtn: @Composable (app.meineschule.expressive.data.Person) -> Unit = { p -> if (key(p) != null && school?.canUseMessenger != false) IconButton({ chat(p) }) { Icon(Icons.Rounded.Chat, "Chat starten") } }
     val name = (info.state as? UiState.Ready)?.data?.student?.name ?: school?.students?.firstOrNull { it.id == id }?.name ?: "Schüler"
     PageScaffold(name, (info.state as? UiState.Ready)?.data?.student?.cls?.let { "Klasse $it" }, onBack, snackbarHost = { SnackbarHost(snack) }) { pad ->
         StateHost(info, Modifier.padding(top = pad.calculateTopPadding())) { s ->
@@ -37,7 +42,7 @@ fun StudentScreen(id: String, onBack: () -> Unit) {
                 fun group(title: String, g: InfoGroup) {
                     if (g.persons.isEmpty()) return
                     item { SectionTitle(g.title?.takeIf { it.isNotBlank() } ?: title) }
-                    itemsIndexed(g.persons) { i, p -> GroupedItem(i, g.persons.size, p.name, supporting = p.type, leading = { PersonAvatar(p.name, p.userId?.let { u -> app.repos.school.avatarUrl(u) }, 44.dp, key = p.userId ?: p.name) }) }
+                    itemsIndexed(g.persons) { i, p -> GroupedItem(i, g.persons.size, p.name, supporting = p.type, leading = { PersonAvatar(p.name, p.userId?.let { u -> app.repos.school.avatarUrl(u) }, 44.dp, key = p.userId ?: p.name) }, trailing = { chatBtn(p) }, onClick = if (key(p) != null) ({ open(p) }) else null) }
                 }
                 group("Eltern", s.parents); group("Partner", s.partners)
                 s.classInfo.forEach { group("Klasse", it) }
@@ -46,7 +51,7 @@ fun StudentScreen(id: String, onBack: () -> Unit) {
                     item { SectionTitle("Fachlehrkräfte") }
                     s.subjects.forEach { sub ->
                         item { Text(sub.title ?: "Fach", Modifier.padding(horizontal = 24.dp, vertical = 6.dp), style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary) }
-                        itemsIndexed(sub.persons) { i, p -> GroupedItem(i, sub.persons.size, p.name, supporting = p.type, leading = { PersonAvatar(p.name, p.userId?.let { u -> app.repos.school.avatarUrl(u) }, 40.dp, key = p.userId ?: p.name) }) }
+                        itemsIndexed(sub.persons) { i, p -> GroupedItem(i, sub.persons.size, p.name, supporting = p.type, leading = { PersonAvatar(p.name, p.userId?.let { u -> app.repos.school.avatarUrl(u) }, 40.dp, key = p.userId ?: p.name) }, trailing = { chatBtn(p) }, onClick = if (key(p) != null) ({ open(p) }) else null) }
                     }
                 }
                 if (s.properties.isNotEmpty()) {

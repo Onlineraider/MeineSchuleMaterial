@@ -100,7 +100,7 @@ fun MainShell() {
             composable("lost") { LostScreen(onBack = { nav.popBackStack() }) }
             composable("protocols") { ProtocolsScreen(nav) }
             composable("protocol/{id}") { ProtocolDetailScreen(it.arguments!!.getString("id")!!, onBack = { nav.popBackStack() }) }
-            composable("student/{id}") { StudentScreen(it.arguments!!.getString("id")!!, onBack = { nav.popBackStack() }) }
+            composable("student/{id}") { StudentScreen(it.arguments!!.getString("id")!!, nav) }
             composable("profile") { ProfileScreen(nav) }
             composable("notifications") { NotificationsScreen(nav) }
             composable("links") { LinksScreen(onBack = { nav.popBackStack() }) }
