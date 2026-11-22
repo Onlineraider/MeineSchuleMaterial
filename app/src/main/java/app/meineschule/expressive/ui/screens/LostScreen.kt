@@ -2,6 +2,7 @@ package app.meineschule.expressive.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -75,8 +76,8 @@ fun LostScreen(onBack: () -> Unit) {
             @Composable fun field(k: String, v: String?) { if (!v.isNullOrBlank()) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainerHigh).padding(14.dp)) { Text(k, style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant); Text(v, style = MaterialTheme.typography.bodyLarge) } }
             field(if (z.found) "Fundort" else "Zuletzt gesehen / Ort", z.location); field("Beschreibung", z.text); field("Gemeldet von", z.creator)
             if (z.canEdit) Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                FilledTonalButton(onEdit, Modifier.weight(1f), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Edit, null); Spacer(Modifier.width(8.dp)); Text("Bearbeiten") }
-                OutlinedButton(onDelete, Modifier.weight(1f), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Delete, null); Spacer(Modifier.width(8.dp)); Text("Löschen") }
+                FilledTonalButton(onEdit, modifier = Modifier.weight(1f), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Edit, null); Spacer(Modifier.width(8.dp)); Text("Bearbeiten") }
+                OutlinedButton(onDelete, modifier = Modifier.weight(1f), shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Delete, null); Spacer(Modifier.width(8.dp)); Text("Löschen") }
             }
         }
     }
