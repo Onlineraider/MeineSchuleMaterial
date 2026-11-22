@@ -30,18 +30,17 @@ class DataTest {
         assertEquals(1, day.lessonCount)                                  // ausgefallene Stunde zählt nicht
     }
 
-    @Test fun schedule_filtersGarbageExtras_acceptsArraySlots_andDetectsChanges() {
-        val j = Json.parseToJsonElement("""{"schedule":{"days":[{"d":"2025-03-03","l":[[{"st":"Mathe","r":"null","x":-1,"room":"202","t":null}],{"e":[{"st":"Deutsch","vertretung":"Müller"}]},[{"st":"Kunst","info":"Entfällt"}]]}]}}""")
+    @Test fun schedule_usesPortalFields_andLinksReplacements() {
+        val j = Json.parseToJsonElement("""{"startTimes":["08:00:00"],"schedule":{"days":[{"d":"2026-11-23T00:00:00","l":[{"s":[],"e":[{"st":"Bi","sc":null,"gt":null,"ct":"10c","tt":"Ede","tc":null,"rm":"309","txt":null,"rix":-1,"cancelled":false}]},{"s":[],"e":[{"st":"Ph","ct":"9c","tt":"Dom","rm":"217","rix":0,"cancelled":false}]}]}]},"replacements":[{"classesOrGroups":"9c","date":"2026-11-19T00:00:00","lessonIndex":3,"lessons":2,"newDate":"2026-11-23T00:00:00","newLessonIndex":6,"newSubject":"Ph","newTeachers":"Dom","newRooms":"217","subject":"Ph","teachers":"Dom","rooms":"313","reasonText":"Verl."}]}""")
         val d = parseSchedule(j).days.single()
-        val m = d.slots[0].entries.single(); assertEquals("Mathe", m.subject); assertEquals(listOf("room" to "202"), m.extra.filter { it.first == "room" })
-        assertFalse(m.extra.any { it.second == "null" || it.second == "-1" })
-        assertTrue(d.slots[1].entries.single().changed); assertTrue(d.slots[2].entries.single().cancelled)
+        val m = d.slots[0].entries.single(); assertEquals("Bi", m.subject); assertEquals("10c · Ede · 309", m.hint); assertFalse(m.changed)
+        val c = d.slots[1].entries.single(); assertTrue(c.changed); assertTrue(c.extra.any { it.first == "Verlegung" && it.second.contains("3-4 (19.11.2026) > 6-7 (23.11.2026)") })
     }
 
     @Test fun replacementsAndInfos_areParsed() {
-        val j = Json.parseToJsonElement("""{"schedule":null,"startTimes":["08:00:00","08:40:00",null],"replacements":[{"lessonText":"3-4 (19.11.2026) > 6-7 (23.11.2026)","cog":"9c","subject":"Ma","teacher":"Wur","room":"217","info":""}],"infos":[{"date":"2026-11-23T00:00:00","informationPublic":"Präsenz: Lie","informationTeachers":null,"isActive":true}]}""")
+        val j = Json.parseToJsonElement("""{"schedule":null,"startTimes":["08:00:00","08:40:00",null],"replacements":[{"classesOrGroups":"9c","date":"2026-11-19T00:00:00","lessonIndex":3,"lessons":2,"newDate":"2026-11-23T00:00:00","newLessonIndex":6,"newSubject":"Ma","newTeachers":"Wur","newRooms":"217","subject":"Ma","teachers":"Wur","rooms":"217","reasonText":"Verl."}],"infos":[{"date":"2026-11-23T00:00:00","informationPublic":"Präsenz: Lie","informationTeachers":null,"isActive":true}]}""")
         val d = ChangesParser.fromJson(java.time.LocalDate.of(2026, 11, 23), j)
-        assertEquals("Präsenz: Lie", d.notes.single()); val r = d.rows.single(); assertEquals("9c", r.group); assertEquals("Ma", r.subject); assertTrue(r.highlighted)
+        assertEquals("Präsenz: Lie", d.notes.single()); val r = d.rows.single(); assertEquals("9c", r.group); assertEquals("Ma", r.subject); assertEquals("3-4 (19.11.2026) > 6-7 (23.11.2026)", r.hours); assertTrue(r.moved)
         val s = parseSchedule(j); assertEquals("08:45", LessonTimes.fromStarts(s.startTimes)[0].to.let { "08:45" }); assertEquals(2, LessonTimes.fromStarts(s.startTimes).size)
     }
 

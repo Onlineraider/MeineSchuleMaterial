@@ -154,6 +154,6 @@ class Repos(private val api: ApiClient, private val portal: PortalClient) {
     }
 
     /** Vertretungen/Änderungen eines Tages: Portal-Ansicht „Vertretungen“ (`view=replacements`) liefert `replacements` + `infos`. */
-    suspend fun changes(date: LocalDate): DayChanges = ChangesParser.fromJson(date, portal.scheduleJson(api.school ?: throw ApiException(ErrorKind.Client, "Keine Schule"), date, null, null, "replacements"))
+    suspend fun changes(date: LocalDate): DayChanges = ChangesParser.fromJson(date, portal.scheduleJson(api.school ?: throw ApiException(ErrorKind.Client, "Keine Schule"), date, null, null, null))
     suspend fun schedule(date: LocalDate, studentId: String?, cog: String? = null): Schedule = parseSchedule(portal.scheduleJson(api.school ?: throw ApiException(ErrorKind.Client, "Keine Schule"), date, studentId, cog))
 }

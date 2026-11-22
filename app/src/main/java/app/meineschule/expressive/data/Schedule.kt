@@ -43,19 +43,20 @@ object LessonTimes {
     }
 }
 
-private val CHANGE_KEY = Regex("(vertret|subst|replac|change|änder|aend|moved|verleg|ersatz)", RegexOption.IGNORE_CASE)
-private val CANCEL_TXT = Regex("\\b(entfall|entfällt|ausfall|fällt aus)\\b", RegexOption.IGNORE_CASE)
-private val CHANGE_TXT = Regex("vertretung|raum ?änder|raumwechsel|verlegt", RegexOption.IGNORE_CASE)
 private val TIME = Regex("(\\d{1,2})[:.](\\d{2})\\s*(?:-|–|bis)\\s*(\\d{1,2})[:.](\\d{2})")
 
-internal fun parseEntry(e: JsonElement): LessonEntry {
-    val o = e as? JsonObject ?: JsonObject(mapOf("st" to JsonPrimitive((e as? JsonPrimitive)?.contentOrNull.orEmpty())))
-    val extra = o.entries.filter { (k, v) -> k != "st" && k != "cancelled" && v is JsonPrimitive && v !is JsonNull && v.content.isNotBlank() && v.content != "null" && v.content != "-1" }.map { (k, v) -> k to (v as JsonPrimitive).content.trim() }
-    val txt = extra.joinToString(" ") { it.second }
-    val flag = extra.firstOrNull { (k, v) -> v != "false" && CHANGE_KEY.containsMatchIn(k) }
-    val cancelled = (o["cancelled"] as? JsonPrimitive)?.content == "true" || CANCEL_TXT.containsMatchIn(txt)
-    val subject = listOf("st", "subject", "s").firstNotNullOfOrNull { (o[it] as? JsonPrimitive)?.takeIf { p -> p !is JsonNull }?.content?.trim()?.takeIf { s -> s.isNotEmpty() && s != "null" } }.orEmpty()
-    return LessonEntry(subject.ifEmpty { "–" }, cancelled, !cancelled && (flag != null || CHANGE_TXT.containsMatchIn(txt)), extra.filter { it.first != "s" && it.first != "subject" }, flag?.first)
+/**
+ * Plan-Eintrag des Portals: `st` Fach, `ct` Klasse(n), `gt` Gruppe, `tt` Lehrkraft, `rm` Raum, `txt` Text, `rix` Index in `replacements[]`
+ * (-1 = keine Änderung), `cancelled` Entfall. Alle anderen Felder (`sc`, `tc`, …) werden nicht angezeigt.
+ */
+internal fun parseEntry(e: JsonElement, reps: List<ChangeRow> = emptyList()): LessonEntry {
+    val j = J(e)
+    fun f(k: String) = j.str(k)?.trim()?.takeIf { it.isNotEmpty() && it != "null" && it != "-1" }
+    val rix = f("rix")?.toIntOrNull() ?: -1; val rep = reps.getOrNull(rix)
+    val cancelled = j.bool("cancelled") == true || rep?.cancelled == true
+    val extra = listOfNotNull(f("ct")?.let { "Klasse" to it }, f("tt")?.let { "Lehrer" to it }, f("rm")?.let { "Raum" to it }, f("gt")?.let { "Gruppe" to it }, f("txt")?.let { "Info" to it })
+        .let { l -> if (rep == null) l else l + listOfNotNull(rep.hours.takeIf { rep.moved && it.isNotBlank() }?.let { "Verlegung" to it }, rep.info.takeIf { it.isNotBlank() }?.let { "Änderung" to it }) }
+    return LessonEntry(f("st") ?: (e as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: "–", cancelled, !cancelled && (rep != null || rix >= 0), extra, rep?.let { "Vertretungsplan" })
 }
 
 private fun slotTime(slot: JsonElement): TimeRange? {
@@ -68,12 +69,13 @@ private fun slotTime(slot: JsonElement): TimeRange? {
 
 fun parseSchedule(json: JsonElement?): Schedule {
     val root = J(json); val sched = root.obj("schedule") ?: root.obj("Schedule") ?: root
+    val reps = ChangesParser.rows(root)
     return Schedule(startTimes = root.strings("startTimes"), infos = root.arr("infos").filter { it.bool("isActive") != false }.map { ScheduleInfo(Dates.date(it.str("date")?.take(10)), it.str("informationPublic")?.takeIf { x -> x.isNotBlank() }, it.str("informationTeachers")?.takeIf { x -> x.isNotBlank() }) }, days = sched.arr("days").mapNotNull { d ->
         val date = Dates.date((d.str("d") ?: d.str("date"))?.take(10)) ?: return@mapNotNull null
         ScheduleDay(date, d.arr("l").mapIndexed { i, slot ->
             val raw = slot.raw
             val entries = when (raw) { is JsonArray -> raw.toList(); is JsonObject -> (raw["e"] as? JsonArray)?.toList().orEmpty(); else -> emptyList() }
-            Slot(i, entries.filter { it !is JsonNull }.map(::parseEntry), raw?.let(::slotTime))
+            Slot(i, entries.filter { it !is JsonNull }.map { parseEntry(it, reps) }, raw?.let(::slotTime))
         })
     })
 }

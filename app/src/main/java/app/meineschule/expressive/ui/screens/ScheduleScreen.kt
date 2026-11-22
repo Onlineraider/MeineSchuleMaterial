@@ -89,9 +89,7 @@ fun ScheduleScreen() {
                 val ch = sched.changes()
                 Column {
                     if (ch.isNotEmpty()) { val nx = ch.count { it.third.cancelled }; InfoBanner("Diese Woche: " + listOfNotNull(nx.takeIf { it > 0 }?.let { "$it Entfall" + if (it > 1) "e" else "" }, (ch.size - nx).takeIf { it > 0 }?.let { "$it Änderung" + if (it > 1) "en" else "" }).joinToString(" · "), Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
-                    val rel = changeResult?.getOrNull()?.rows?.filter { ChangesParser.relevant(it, planNames) }.orEmpty()
-                    if (rel.isNotEmpty() && view == PlanView.Day) InfoBanner("Vertretungen für ${planNames.joinToString()} am ${Dates.dayShort(selected)}: ${rel.size} Änderung" + if (rel.size > 1) "en" else "", Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp))
-                    val dayShown = sched.days.firstOrNull { it.date == selected }.let { if (rel.isNotEmpty()) ChangesParser.overlay(it, selected, rel) else it }
+                    val dayShown = sched.days.firstOrNull { it.date == selected }
                     val eff = if (app.prefs.lessonTimes == null && sched.startTimes.isNotEmpty()) LessonTimes.fromStarts(sched.startTimes) else times
                     if (view == PlanView.Day) sched.infoFor(selected).forEach { i -> listOfNotNull(i.public, i.teachers?.let { "Lehrkräfte: $it" }).forEach { t -> InfoBanner(t, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
                     if (view == PlanView.Day) DayView(dayShown, selected, eff) { d, sl, e -> detailOf = Triple(d, sl, e) } else WeekView(sched, today, eff)
