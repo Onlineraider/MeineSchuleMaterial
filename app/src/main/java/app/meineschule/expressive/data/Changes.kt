@@ -14,6 +14,7 @@ import java.time.format.DateTimeFormatter
 data class ChangeRow(
     val hours: String, val group: String, val subject: String, val teacher: String, val room: String, val info: String, val highlighted: Boolean,
     val cancelled: Boolean = false, val moved: Boolean = false, val reason: String? = null,
+    /** Geänderte Felder (Bezeichnung, alt, neu), z. B. „Raum“, „313“, „312“. */ val diffs: List<Triple<String, String, String>> = emptyList(),
 )
 data class DayChanges(val date: LocalDate, val notes: List<String>, val rows: List<ChangeRow>)
 
@@ -31,11 +32,13 @@ object ChangesParser {
         val moved = (nIdx != null && nIdx != idx) || (nDate != null && nDate != date)
         val hours = if (moved) at(range(idx), date) + " > " + at(range(nIdx ?: idx), nDate ?: date) else range(idx).orEmpty()
         fun change(old: String?, new: String?) = when { new == null -> old.orEmpty(); old == null || old == new -> new; else -> "$old > $new" }
+        fun df(l: String, o: String?, n: String?) = if (n != null && o != n) Triple(l, o ?: "–", n) else null
+        val diffs = listOfNotNull(df("Fach", s("subject"), s("newSubject")), df("Lehrer", s("teachers"), s("newTeachers")), df("Raum", s("rooms"), s("newRooms")), df("Klasse/Gruppe", s("classesOrGroups"), s("newClassesOrGroups")))
         val reason = s("reasonText")
         val nothingNew = s("newSubject") == null && s("newTeachers") == null && s("newRooms") == null && !moved
         val cancelled = reason?.contains("ntf", true) == true || reason?.contains("ausf", true) == true || nothingNew
         ChangeRow(hours, change(s("classesOrGroups"), s("newClassesOrGroups")), change(s("subject"), s("newSubject")), change(s("teachers"), s("newTeachers")), change(s("rooms"), s("newRooms")),
-            listOfNotNull(reason, s("message"), s("text")).joinToString(" · "), true, cancelled, moved, reason)
+            listOfNotNull(reason, s("message"), s("text")).joinToString(" · "), true, cancelled, moved, reason, diffs)
     }
 
     fun fromJson(date: LocalDate, json: JsonElement): DayChanges {

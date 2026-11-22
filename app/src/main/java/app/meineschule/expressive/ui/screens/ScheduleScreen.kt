@@ -144,12 +144,20 @@ fun ScheduleScreen() {
 
 @Composable private fun LessonCard(e: LessonEntry, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    Row(Modifier.fillMaxWidth().clip(if (e.cancelled) RoundedCornerShape(16.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)).background(if (e.cancelled) cs.errorContainer.copy(alpha = .55f) else if (e.changed) cs.tertiaryContainer else cs.surfaceContainerLow).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-        Column(Modifier.weight(1f)) {
-            Text(e.subject, style = MaterialTheme.typography.titleMedium, textDecoration = if (e.cancelled) TextDecoration.LineThrough else null, color = if (e.cancelled) cs.onErrorContainer else cs.onSurface)
-            if (e.hint.isNotBlank()) Text(e.hint, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant) // undokumentierte Zusatzfelder (z. B. Raum/Lehrkraft), falls das Portal sie liefert
+    val bg = if (e.cancelled) cs.errorContainer else if (e.changed) cs.tertiaryContainer else cs.surfaceContainerLow
+    val fg = if (e.cancelled) cs.onErrorContainer else if (e.changed) cs.onTertiaryContainer else cs.onSurface
+    val sub = if (e.cancelled || e.changed) fg else cs.onSurfaceVariant
+    Row(Modifier.fillMaxWidth().clip(if (e.cancelled) RoundedCornerShape(16.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)).background(bg).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(e.subject, style = MaterialTheme.typography.titleMedium, textDecoration = if (e.cancelled) TextDecoration.LineThrough else null, color = fg)
+                if (e.cancelled) Icon(Icons.Rounded.EventBusy, "Entfällt", Modifier.size(18.dp), tint = fg) else if (e.changed) Icon(Icons.Rounded.SwapHoriz, "Änderung", Modifier.size(18.dp), tint = fg)
+            }
+            if (e.hint.isNotBlank()) Text(e.hint, style = MaterialTheme.typography.bodySmall, color = sub)
+            if (e.cancelled) Text("Entfällt", style = MaterialTheme.typography.labelLarge, color = fg)
+            e.diffs.forEach { (l, o, n) -> Text("$l: $o \u2192 $n", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg) }
+            if (e.changed && e.diffs.isEmpty()) e.extra.firstOrNull { it.first == "Verlegung" }?.let { Text("Verlegt: " + it.second, style = MaterialTheme.typography.labelLarge, color = fg) }
         }
-        if (e.cancelled) AssistChip(onClick = onClick, label = { Text("Entfällt") }, leadingIcon = { Icon(Icons.Rounded.EventBusy, null, Modifier.size(16.dp)) }) else if (e.changed) AssistChip(onClick = onClick, label = { Text("Änderung") }, leadingIcon = { Icon(Icons.Rounded.SwapHoriz, null, Modifier.size(16.dp)) })
     }
 }
 
@@ -165,8 +173,8 @@ fun ScheduleScreen() {
                 Text("${r + 1}" + (times.getOrNull(r)?.let { "\n" + it.from.take(5) } ?: ""), Modifier.width(28.dp), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant)
                 days.forEach { d ->
                     val es = d.slots.getOrNull(r)?.entries.orEmpty()
-                    Column(Modifier.weight(1f).padding(2.dp).clip(RoundedCornerShape(10.dp)).background(if (es.isEmpty()) androidx.compose.ui.graphics.Color.Transparent else cs.secondaryContainer).defaultMinSize(minHeight = 44.dp).padding(4.dp), verticalArrangement = Arrangement.Center) {
-                        es.forEach { e -> Text(e.subject, style = MaterialTheme.typography.labelSmall, maxLines = 2, color = if (e.cancelled) cs.error else cs.onSecondaryContainer, textDecoration = if (e.cancelled) TextDecoration.LineThrough else null) }
+                    Column(Modifier.weight(1f).padding(2.dp).clip(RoundedCornerShape(10.dp)).background(if (es.isEmpty()) androidx.compose.ui.graphics.Color.Transparent else if (es.any { it.cancelled }) cs.errorContainer else if (es.any { it.changed }) cs.tertiaryContainer else cs.secondaryContainer).defaultMinSize(minHeight = 44.dp).padding(4.dp), verticalArrangement = Arrangement.Center) {
+                        es.forEach { e -> Text(e.subject, style = MaterialTheme.typography.labelSmall, maxLines = 2, color = if (e.cancelled) cs.onErrorContainer else if (e.changed) cs.onTertiaryContainer else cs.onSecondaryContainer, textDecoration = if (e.cancelled) TextDecoration.LineThrough else null) }
                     }
                 }
             }
@@ -181,8 +189,9 @@ fun ScheduleScreen() {
             Text(if (e.cancelled) "Entfällt" else if (e.changed) "Änderung / Vertretung" else "Planmäßig", style = MaterialTheme.typography.labelLarge)
             Text("${Dates.dayLong(d.date)} · ${slot.index + 1}. Position im Plan")
             time?.let { Text("${it.from}–${it.to}" + if (slot.time == null) " (eingestellte Unterrichtszeit)" else "") }
-            e.extra.forEach { (k, v) -> Text("$k: $v", style = MaterialTheme.typography.bodySmall) }
-            e.reason?.let { Text("Änderung erkannt an Feld: $it", style = MaterialTheme.typography.bodySmall) }
+            e.extra.forEach { (k, v) -> Text("$k: $v", style = MaterialTheme.typography.bodyMedium) }
+            e.diffs.forEach { (l, o, n) -> Text("$l geändert: $o \u2192 $n", style = MaterialTheme.typography.bodyMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold) }
+            e.reason?.let { Text("Grund: $it", style = MaterialTheme.typography.bodyMedium) }
         }
     })
 }
