@@ -183,7 +183,8 @@ fun LazyListScope.groupedItems(count: Int, item: @Composable (Int) -> Unit) { it
     val (bg, fg) = listOf(cs.primaryContainer to cs.onPrimaryContainer, cs.tertiaryContainer to cs.onTertiaryContainer, cs.secondaryContainer to cs.onSecondaryContainer)[h % 3]
     Box(Modifier.size(size).clip(shape).background(bg), contentAlignment = Alignment.Center) {
         Text(name.trim().split(Regex("\\s+")).take(2).joinToString("") { it.take(1).uppercase() }.ifEmpty { "?" }, color = fg, style = MaterialTheme.typography.titleMedium)
-        if (imageUrl != null) AsyncImage(ImageRequest.Builder(LocalContext.current).data(imageUrl).build(), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
+        val show by app.meineschule.expressive.LocalApp.current.prefs.avatars.collectAsState()
+        if (imageUrl != null && show) AsyncImage(ImageRequest.Builder(LocalContext.current).data(imageUrl).build(), null, Modifier.fillMaxSize(), contentScale = androidx.compose.ui.layout.ContentScale.Crop)
     }
 }
 

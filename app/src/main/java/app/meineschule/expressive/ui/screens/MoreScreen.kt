@@ -27,7 +27,6 @@ fun MoreScreen(nav: NavHostController) {
         add(Entry("Betreuung", "Abholzeiten und Betreuungsoptionen", Icons.Rounded.Schedule, "care"))
         add(Entry("Fundsachen", "Gefundenes ansehen oder melden", Icons.Rounded.Inventory2, "lost"))
         add(Entry("Protokolle", "Sitzungen, Tagesordnungen und Dateien", Icons.Rounded.Description, "protocols"))
-        if (s != null && s.students.isNotEmpty()) s.students.forEach { st -> add(Entry(st.name, "Schülerdaten${st.cls?.let { " · Klasse $it" } ?: ""}", Icons.Rounded.Badge, "student/${st.id}")) }
         if (s != null && s.links.isNotEmpty()) add(Entry("Weitere Links", "Von deiner Schule bereitgestellt", Icons.Rounded.Link, "links"))
         add(Entry("Profil", profile?.displayName ?: "Konto und Schulen", Icons.Rounded.Person, "profile"))
         add(Entry("Einstellungen", "Darstellung, Sicherheit, Datenschutz", Icons.Rounded.Tune, "settings"))

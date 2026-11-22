@@ -29,7 +29,7 @@ import kotlinx.serialization.json.JsonElement
 @Composable
 fun NewChatScreen(nav: NavHostController, editId: String?, prefill: List<String>) {
     val app = LocalApp.current; val scope = rememberCoroutineScope(); val cs = MaterialTheme.colorScheme; val contacts = app.contacts
-    var name by remember { mutableStateOf("") }; var reuse by remember { mutableStateOf(true) }; var limited by remember { mutableStateOf(false) }
+    var name by remember { mutableStateOf("") }; var reuse by remember { mutableStateOf(prefill.isEmpty()) }; var limited by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(prefill.map { contacts.fill(it) }) }
     var authors by remember { mutableStateOf<List<JsonElement>>(emptyList()) }
     var q by remember { mutableStateOf("") }; var results by remember { mutableStateOf<List<RecipientItem>>(emptyList()) }
@@ -78,9 +78,9 @@ fun NewChatScreen(nav: NavHostController, editId: String?, prefill: List<String>
             val shown = results.filter { !has(it) }.sortedBy { it.text.lowercase() }.take(40)
             if (q.isNotBlank() && shown.isEmpty()) item { Text("Keine Treffer.", Modifier.padding(16.dp), color = cs.onSurfaceVariant) }
             itemsIndexed(shown, key = { _, r -> r.key }) { i, r ->
-                if (r.alts.size > 1) GroupedItem(i, shown.size, r.text.ifBlank { r.key }, supporting = listOfNotNull(r.info, "mehrere Kennungen – bitte wählen").joinToString(" · "), leading = { PersonAvatar(r.text, key = r.key) },
+                if (r.alts.size > 1) GroupedItem(i, shown.size, r.text.ifBlank { r.key }, supporting = listOfNotNull(r.info, "mehrere Kennungen – bitte wählen").joinToString(" · "), leading = { PersonAvatar(r.text, r.alts.map { it.key }.plus(r.key).firstOrNull { it.startsWith("U:USER:", true) }?.let { k -> app.repos.school.avatarUrl(k.substring(7)) }, key = r.key) },
                     trailing = { Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) { r.alts.sortedByDescending { it.key.startsWith("U:", true) }.forEach { a -> AssistChip({ add("${a.key}=${a.text.ifBlank { r.text }}") }, { Text(kindLabel(a.key)) }) } } })
-                else GroupedItem(i, shown.size, r.text.ifBlank { r.key }, supporting = listOfNotNull(r.info, r.kind).joinToString(" · "), leading = { PersonAvatar(r.text, key = r.key) }, trailing = { Icon(Icons.Rounded.Add, "Hinzufügen") }, onClick = { add("${r.key}=${r.text}") })
+                else GroupedItem(i, shown.size, r.text.ifBlank { r.key }, supporting = listOfNotNull(r.info, r.kind).joinToString(" · "), leading = { PersonAvatar(r.text, r.alts.map { it.key }.plus(r.key).firstOrNull { it.startsWith("U:USER:", true) }?.let { k -> app.repos.school.avatarUrl(k.substring(7)) }, key = r.key) }, trailing = { Icon(Icons.Rounded.Add, "Hinzufügen") }, onClick = { add("${r.key}=${r.text}") })
             }
             item { TextButton({ manual = !manual }, Modifier.padding(horizontal = 8.dp)) { Icon(Icons.Rounded.Add, null); Spacer(Modifier.width(8.dp)); Text("Manuell per ID hinzufügen") } }
             if (manual) item {

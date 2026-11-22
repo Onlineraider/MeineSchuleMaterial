@@ -32,7 +32,7 @@ fun StudentScreen(id: String, nav: androidx.navigation.NavHostController) {
     val snack = remember { SnackbarHostState() }
     fun key(p: app.meineschule.expressive.data.Person): String? = p.userId?.let { "U:USER:$it" } ?: p.id?.takeIf { p.type != null }?.let { "P:${p.type!!.uppercase()}:$it" }
     fun open(p: app.meineschule.expressive.data.Person) { val k = key(p) ?: return; nav.navigate("person?k=${Urls.seg(k)}&n=${Urls.seg(p.name)}" + (p.userId?.let { "&u=${Urls.seg(it)}" } ?: "")) }
-    fun chat(p: app.meineschule.expressive.data.Person) { val k = key(p) ?: return; scope.launch { try { val cid = app.repos.messenger.create(null, listOf("$k=${p.name}"), reuse = true); if (cid != null) nav.navigate("chat/$cid") } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } } }
+    fun chat(p: app.meineschule.expressive.data.Person) { val k = key(p) ?: return; nav.navigate("newchat?prefill=${Urls.seg("$k=${p.name}")}") }
     val chatBtn: @Composable (app.meineschule.expressive.data.Person) -> Unit = { p -> if (key(p) != null && school?.canUseMessenger != false) IconButton({ chat(p) }) { Icon(Icons.Rounded.Chat, "Chat starten") } }
     val name = (info.state as? UiState.Ready)?.data?.student?.name ?: school?.students?.firstOrNull { it.id == id }?.name ?: "Schüler"
     PageScaffold(name, (info.state as? UiState.Ready)?.data?.student?.cls?.let { "Klasse $it" }, onBack, snackbarHost = { SnackbarHost(snack) }) { pad ->

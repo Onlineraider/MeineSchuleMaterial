@@ -48,7 +48,7 @@ class Repos(private val api: ApiClient, private val portal: PortalClient) {
             val back = "/$schoolTag/${path.trimStart('/')}"
             return "$origin/Account/Login?token=${Urls.seg(token)}&inapp=1&returnurl=${Urls.seg(back)}"
         }
-        fun avatarUrl(userId: String, w: Int = 96) = "${api.account("Image/${seg(userId)}")}?w=$w"
+        fun avatarUrl(userId: String, w: Int = 96) = "${api.origin}/Account/Image/${seg(userId)}?w=$w"
     }
 
     inner class MessengerRepo {
