@@ -21,6 +21,7 @@ import app.meineschule.expressive.core.Dates
 import app.meineschule.expressive.data.*
 import app.meineschule.expressive.ui.components.*
 import java.time.LocalDate
+import app.meineschule.expressive.ui.theme.MsdShapes
 import kotlinx.coroutines.launch
 import app.meineschule.expressive.core.asApi
 
@@ -39,7 +40,7 @@ fun HipScreen(onBack: () -> Unit) {
     val snack = remember { SnackbarHostState() }; val scope = rememberCoroutineScope()
     val canReport = school?.canCreateAbsences == true && student != null
     PageScaffold(title = "Home.InfoPoint", subtitle = student?.name, onBack = onBack, snackbarHost = { SnackbarHost(snack) },
-        floatingActionButton = { if (canReport && tab == HipClass.Abs) ExtendedFloatingActionButton(onClick = { creating = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Abwesenheit melden") }, shape = app.meineschule.expressive.ui.theme.MsdShapes.Fab) }) { pad ->
+        floatingActionButton = { if (canReport && tab == HipClass.Abs) ExtendedFloatingActionButton(onClick = { creating = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Abwesenheit melden") }, shape = MsdShapes.Fab) }) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding())) {
             if (students.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == idx, { idx = i }, { Text(s.name) }) } }
             StateHost(loader, Modifier.weight(1f), isEmpty = { it.isEmpty }, empty = { EmptyState(Icons.Rounded.Grade, "Keine Informationen verfügbar", "Für diese Person liegen im Home.InfoPoint aktuell keine Daten vor.") }) { d ->
