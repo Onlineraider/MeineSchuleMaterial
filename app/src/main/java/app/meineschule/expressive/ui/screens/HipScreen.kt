@@ -21,6 +21,8 @@ import app.meineschule.expressive.core.Dates
 import app.meineschule.expressive.data.*
 import app.meineschule.expressive.ui.components.*
 import java.time.LocalDate
+import kotlinx.coroutines.launch
+import app.meineschule.expressive.core.asApi
 
 /** Home.InfoPoint: serverseitiges HTML wird bereinigt (Jsoup-Safelist) und nativ dargestellt – nie in einer WebView. */
 @Composable
@@ -30,7 +32,14 @@ fun HipScreen(onBack: () -> Unit) {
     val students = (hipStudents.state as? UiState.Ready)?.data.orEmpty(); var idx by remember { mutableIntStateOf(0) }; var tab by remember { mutableStateOf(HipClass.Abs) }
     val student = students.getOrNull(idx)
     val loader = rememberLoader(gen, student?.id, students.size) { if (student == null) HipData(emptyList(), emptyList()) else app.repos.hip.student(student.id) }
-    PageScaffold(title = "Home.InfoPoint", subtitle = student?.name, onBack = onBack) { pad ->
+    val absIndex = rememberLoader(gen) { app.repos.absence.index() }
+    val reports = rememberLoader(gen, student?.id) { student?.let { runCatching { app.repos.absence.reports(it.id) }.getOrDefault(emptyList()) } ?: emptyList() }
+    val cats = (absIndex.state as? UiState.Ready)?.data?.categories.orEmpty()
+    var editing by remember { mutableStateOf<AbsenceReport?>(null) }; var creating by remember { mutableStateOf(false) }; var deleting by remember { mutableStateOf<AbsenceReport?>(null) }
+    val snack = remember { SnackbarHostState() }; val scope = rememberCoroutineScope()
+    val canReport = school?.canCreateAbsences == true && student != null
+    PageScaffold(title = "Home.InfoPoint", subtitle = student?.name, onBack = onBack, snackbarHost = { SnackbarHost(snack) },
+        floatingActionButton = { if (canReport && tab == HipClass.Abs) ExtendedFloatingActionButton(onClick = { creating = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Abwesenheit melden") }, shape = app.meineschule.expressive.ui.theme.MsdShapes.Fab) }) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding())) {
             if (students.size > 1) Row(Modifier.horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == idx, { idx = i }, { Text(s.name) }) } }
             StateHost(loader, Modifier.weight(1f), isEmpty = { it.isEmpty }, empty = { EmptyState(Icons.Rounded.Grade, "Keine Informationen verfügbar", "Für diese Person liegen im Home.InfoPoint aktuell keine Daten vor.") }) { d ->
@@ -38,14 +47,9 @@ fun HipScreen(onBack: () -> Unit) {
                 val cur = if (tab in kinds) tab else kinds.first()
                 Column {
                     PrimaryScrollableTabRow(kinds.indexOf(cur), edgePadding = 8.dp, containerColor = MaterialTheme.colorScheme.surface) { kinds.forEach { k -> Tab(cur == k, { tab = k }, text = { Text(k.label) }) } }
-                    LazyColumn(contentPadding = PaddingValues(vertical = 12.dp)) {
-                        if (cur == HipClass.Abs) {
-                            val a = HipParser.absSummary(d.of(HipClass.Abs))
-                            item { Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Stat("${a.daysExcused}", "Fehltage entschuldigt", Modifier.weight(1f)); Stat("${a.daysUnexcused}", "Fehltage unentschuldigt", Modifier.weight(1f)) } }
-                            item { Spacer(Modifier.height(8.dp)); Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Stat("${a.hoursExcused}", "Fehlstunden entschuldigt", Modifier.weight(1f)); Stat("${a.hoursUnexcused}", "Fehlstunden unentschuldigt", Modifier.weight(1f)) } }
-                            item { SectionTitle("Fehlzeiten") }
-                            if (a.entries.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Fehlzeiten eingetragen", null) } else itemsIndexed(a.entries) { i, e -> GroupedItem(i, a.entries.size, e.day, supporting = e.text.ifBlank { null }, leading = { TileIcon(Icons.Rounded.EventBusy) }) }
-                        } else {
+                    LazyColumn(contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)) {
+                        if (cur == HipClass.Abs) absenceItems(HipParser.absSummary(d.of(HipClass.Abs)), (reports.state as? UiState.Ready)?.data.orEmpty(), cats, if (canReport) ({ editing = it }) else null)
+                        else {
                             val ts = d.of(cur)
                             if (ts.isEmpty() && d.text.isEmpty()) item { EmptyState(Icons.Rounded.Notes, "Keine Einträge", null) }
                             ts.forEach { t ->
@@ -64,11 +68,60 @@ fun HipScreen(onBack: () -> Unit) {
             }
         }
     }
+    if ((creating || editing != null) && student != null) AbsenceForm(student, absIndex, editing, onDismiss = { creating = false; editing = null }, onSaved = { creating = false; editing = null; reports.reload(); scope.launch { snack.showSnackbar("Gespeichert") } }, onDelete = { deleting = editing; editing = null })
+    deleting?.let { r -> ConfirmDialog("Meldung löschen?", "Die Abwesenheitsmeldung wird gelöscht, soweit du dazu berechtigt bist.", "Löschen", { scope.launch { try { app.repos.absence.remove(r.studentId, r.id!!); reports.reload() } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } }; deleting = null }, { deleting = null }) }
 }
 
-@Composable private fun Stat(n: String, label: String, modifier: Modifier) {
+private val DE_DATE = java.time.format.DateTimeFormatter.ofPattern("d.M.[yyyy][yy]")
+private fun parseDe(s: String): LocalDate? = runCatching { LocalDate.parse(s.trim(), DE_DATE) }.getOrNull()
+
+/** Fehlzeiten: eine Übersichtskarte, darunter eine nach Monaten gruppierte Zeitleiste. Eigene Meldungen werden dem passenden Tag zugeordnet (keine Doppelanzeige). */
+private fun androidx.compose.foundation.lazy.LazyListScope.absenceItems(a: AbsSummary, reports: List<AbsenceReport>, cats: List<IdName>, onEdit: ((AbsenceReport) -> Unit)?) {
+    item { AbsSummaryCard(a) }
+    val rows = a.entries.map { e -> val d = parseDe(e.day); Triple(d, e, reports.filter { r -> d != null && Dates.date(r.from)?.let { f -> !d.isBefore(f) && !d.isAfter(Dates.date(r.to) ?: f) } == true }) }.sortedByDescending { it.first }
+    val matched = rows.flatMap { it.third }.mapNotNull { it.id }.toSet()
+    val pending = reports.filter { it.id !in matched }.sortedByDescending { Dates.date(it.from) }
+    if (pending.isNotEmpty()) {
+        item { SectionTitle("Gemeldet – noch nicht eingetragen") }
+        itemsIndexed(pending) { i, r -> ReportRow(i, pending.size, r, cats, onEdit) }
+    }
+    if (rows.isEmpty() && pending.isEmpty()) item { EmptyState(Icons.Rounded.EventAvailable, "Keine Fehlzeiten", "Es sind keine Fehlzeiten eingetragen.") }
+    rows.groupBy { it.first?.let { d -> d.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.GERMAN) + " " + d.year } ?: "Weitere" }.forEach { (month, list) ->
+        item { SectionTitle(month) }
+        itemsIndexed(list) { i, (d, e, rs) ->
+            val un = e.text.contains("unentschuldigt", true); val text = e.text.replace(Regex("\\s*\\((un)?entschuldigt\\)", RegexOption.IGNORE_CASE), "").trim()
+            val cs = MaterialTheme.colorScheme
+            GroupedItem(i, list.size, text.ifBlank { "Fehlzeit" }, supporting = rs.firstOrNull()?.let { r -> listOfNotNull("Gemeldet: " + (cats.firstOrNull { it.id == r.categoryId }?.name ?: "Abwesenheit"), r.text?.takeIf { it.isNotBlank() }).joinToString(" · ") },
+                leading = { DateBadge(d, e.day, if (un) cs.errorContainer else cs.secondaryContainer) },
+                trailing = { AssistChip(onClick = { rs.firstOrNull()?.let { r -> onEdit?.invoke(r) } }, label = { Text(if (un) "Unentschuldigt" else "Entschuldigt") }, colors = AssistChipDefaults.assistChipColors(labelColor = if (un) cs.error else cs.primary)) },
+                onClick = rs.firstOrNull()?.let { r -> onEdit?.let { f -> { f(r) } } })
+        }
+    }
+}
+
+@Composable private fun ReportRow(i: Int, n: Int, r: AbsenceReport, cats: List<IdName>, onEdit: ((AbsenceReport) -> Unit)?) {
+    val f = Dates.date(r.from); val t = Dates.date(r.to)
+    val range = listOfNotNull(f?.let(Dates::dayShort), t?.takeIf { it != f }?.let(Dates::dayShort)).joinToString(" – ")
+    GroupedItem(i, n, cats.firstOrNull { it.id == r.categoryId }?.name ?: "Abwesenheit", supporting = listOfNotNull(range, if (r.fullDay) "ganztägig" else r.fromLesson?.let { "Stunde $it${r.toLesson?.let { x -> "–$x" } ?: ""}" }).joinToString(" · "),
+        leading = { DateBadge(f, range, MaterialTheme.colorScheme.tertiaryContainer) }, onClick = onEdit?.let { fn -> { fn(r) } })
+}
+
+@Composable private fun DateBadge(d: LocalDate?, fallback: String, color: androidx.compose.ui.graphics.Color) {
+    Column(Modifier.size(52.dp).clip(RoundedCornerShape(16.dp)).background(color), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+        if (d != null) { Text("${d.dayOfMonth}", style = MaterialTheme.typography.titleMedium); Text(d.dayOfWeek.getDisplayName(java.time.format.TextStyle.SHORT, java.util.Locale.GERMAN), style = MaterialTheme.typography.labelSmall) }
+        else Text(fallback.take(5), style = MaterialTheme.typography.labelSmall)
+    }
+}
+
+@Composable private fun AbsSummaryCard(a: AbsSummary) {
     val cs = MaterialTheme.colorScheme
-    Column(modifier.clip(RoundedCornerShape(24.dp)).background(cs.secondaryContainer).padding(16.dp)) { Text(n, style = MaterialTheme.typography.headlineMedium, color = cs.onSecondaryContainer); Text(label, style = MaterialTheme.typography.labelMedium, color = cs.onSecondaryContainer) }
+    @Composable fun cell(t: String, m: Modifier, bold: Boolean = false, c: androidx.compose.ui.graphics.Color = cs.onSurface) = Text(t, m, style = if (bold) MaterialTheme.typography.titleLarge else MaterialTheme.typography.labelMedium, color = c, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+    Column(Modifier.padding(horizontal = 16.dp).fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(cs.surfaceContainerHigh).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row { Spacer(Modifier.weight(1.2f)); cell("entschuldigt", Modifier.weight(1f), c = cs.onSurfaceVariant); cell("unentschuldigt", Modifier.weight(1f), c = cs.onSurfaceVariant) }
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Fehltage", Modifier.weight(1.2f), style = MaterialTheme.typography.titleSmall); cell("${a.daysExcused}", Modifier.weight(1f), true); cell("${a.daysUnexcused}", Modifier.weight(1f), true, if (a.daysUnexcused > 0) cs.error else cs.onSurface) }
+        HorizontalDivider()
+        Row(verticalAlignment = Alignment.CenterVertically) { Text("Fehlstunden", Modifier.weight(1.2f), style = MaterialTheme.typography.titleSmall); cell("${a.hoursExcused}", Modifier.weight(1f), true); cell("${a.hoursUnexcused}", Modifier.weight(1f), true, if (a.hoursUnexcused > 0) cs.error else cs.onSurface) }
+    }
 }
 
 @Composable private fun GradeBadge(value: String) { val cs = MaterialTheme.colorScheme; Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(cs.primaryContainer), contentAlignment = Alignment.Center) { Text(value, style = MaterialTheme.typography.titleLarge, color = cs.onPrimaryContainer) } }

@@ -83,7 +83,7 @@ fun HomeScreen(nav: NavHostController) {
                 val quick = buildList {
                     add(Triple("Stundenplan", Icons.Rounded.CalendarViewWeek, "plan")); if (school?.canUseMessenger != false) add(Triple("Nachrichten", Icons.Rounded.ChatBubble, "chats"))
                     if (school?.userHasHIPAccess != false) { add(Triple("Hausaufgaben", Icons.Rounded.Assignment, "hip")); add(Triple("Noten", Icons.Rounded.Grade, "hip")) }
-                    add(Triple("Kalender", Icons.Rounded.CalendarMonth, "calendar")); add(Triple("Abwesenheit", Icons.Rounded.EventBusy, "absence"))
+                    add(Triple("Kalender", Icons.Rounded.CalendarMonth, "calendar"))
                 }
                 LazyRow(contentPadding = PaddingValues(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     items(quick.size) { i ->

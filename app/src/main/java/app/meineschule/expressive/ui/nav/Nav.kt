@@ -96,7 +96,6 @@ fun MainShell() {
             composable("media") { MediaScreen(nav) }
             composable("media/{id}") { MediaDetailScreen(it.arguments!!.getString("id")!!, onBack = { nav.popBackStack() }) }
             composable("hip") { HipScreen(onBack = { nav.popBackStack() }) }
-            composable("absence") { AbsenceScreen(onBack = { nav.popBackStack() }) }
             composable("care") { CareScreen(onBack = { nav.popBackStack() }) }
             composable("lost") { LostScreen(onBack = { nav.popBackStack() }) }
             composable("protocols") { ProtocolsScreen(nav) }

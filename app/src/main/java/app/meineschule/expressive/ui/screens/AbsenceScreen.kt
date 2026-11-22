@@ -25,37 +25,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
 
-@Composable
-fun AbsenceScreen(onBack: () -> Unit) {
-    val app = LocalApp.current; val scope = rememberCoroutineScope(); val gen by app.session.generation.collectAsState(); val school by app.session.school.collectAsState()
-    val index = rememberLoader(gen) { app.repos.absence.index() }
-    var idx by remember { mutableIntStateOf(0) }
-    val students = (index.state as? UiState.Ready)?.data?.students?.ifEmpty { null } ?: school?.students.orEmpty(); val student = students.getOrNull(idx)
-    val reports = rememberLoader(gen, student?.id) { student?.let { app.repos.absence.reports(it.id) } ?: emptyList() }
-    var editing by remember { mutableStateOf<AbsenceReport?>(null) }; var creating by remember { mutableStateOf(false) }; var deleting by remember { mutableStateOf<AbsenceReport?>(null) }
-    val snack = remember { SnackbarHostState() }
-    val cats = (index.state as? UiState.Ready)?.data?.categories.orEmpty()
-
-    PageScaffold("Abwesenheiten", student?.name, onBack, snackbarHost = { SnackbarHost(snack) },
-        floatingActionButton = { if (school?.canCreateAbsences == true && student != null) ExtendedFloatingActionButton(onClick = { creating = true }, icon = { Icon(Icons.Rounded.Add, null) }, text = { Text("Abwesenheit melden") }, shape = MsdShapes.Fab) }) { pad ->
-        Column(Modifier.padding(top = pad.calculateTopPadding())) {
-            if (students.size > 1) Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { students.forEachIndexed { i, s -> FilterChip(i == idx, { idx = i }, { Text(s.name) }) } }
-            StateHost(reports, Modifier.weight(1f), isEmpty = { it.isEmpty() }, empty = { EmptyState(Icons.Rounded.EventAvailable, "Keine Abwesenheitsmeldungen", "Hier erscheinen gemeldete Abwesenheiten.") }) { list ->
-                LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 96.dp)) {
-                    itemsIndexed(list.sortedByDescending { Dates.parse(it.from) }) { i, r ->
-                        val range = listOfNotNull(Dates.date(r.from)?.let(Dates::dayShort), Dates.date(r.to)?.takeIf { it != Dates.date(r.from) }?.let(Dates::dayShort)).joinToString(" – ")
-                        GroupedItem(i, list.size, cats.firstOrNull { it.id == r.categoryId }?.name ?: "Abwesenheit", supporting = listOfNotNull(range, if (r.fullDay) "ganztägig" else r.fromLesson?.let { "Stunde $it${r.toLesson?.let { t -> "–$t" } ?: ""}" }, r.text).joinToString(" · "),
-                            leading = { TileIcon(Icons.Rounded.EventBusy) }, onClick = if (school?.canCreateAbsences == true) ({ editing = r }) else null)
-                    }
-                }
-            }
-        }
-    }
-    if (creating || editing != null) AbsenceForm(student!!, index, editing, onDismiss = { creating = false; editing = null }, onSaved = { creating = false; editing = null; reports.reload(); scope.launch { snack.showSnackbar("Gespeichert") } }, onDelete = { deleting = editing; editing = null })
-    deleting?.let { r -> ConfirmDialog("Meldung löschen?", "Die Abwesenheitsmeldung wird gelöscht, soweit du dazu berechtigt bist.", "Löschen", { scope.launch { try { app.repos.absence.remove(r.studentId, r.id!!); reports.reload() } catch (e: Throwable) { snack.showSnackbar(e.asApi().userText) } } }, { deleting = null }, destructive = true) }
-}
-
-@Composable private fun AbsenceForm(student: Student, index: Loader<AbsenceIndex>, edit: AbsenceReport?, onDismiss: () -> Unit, onSaved: () -> Unit, onDelete: () -> Unit) {
+@Composable internal fun AbsenceForm(student: Student, index: Loader<AbsenceIndex>, edit: AbsenceReport?, onDismiss: () -> Unit, onSaved: () -> Unit, onDelete: () -> Unit) {
     val app = LocalApp.current; val scope = rememberCoroutineScope(); val ctx = LocalContext.current; val cs = MaterialTheme.colorScheme
     val data = (index.state as? UiState.Ready)?.data
     var cat by remember { mutableStateOf(edit?.categoryId ?: data?.categories?.firstOrNull()?.id) }

@@ -24,7 +24,6 @@ fun MoreScreen(nav: NavHostController) {
     val entries = buildList {
         add(Entry("Medien & Dateien", "Beiträge, Bilder und Anlagen", Icons.Rounded.PermMedia, "media"))
         if (s == null || s.userHasHIPAccess) add(Entry("Home.InfoPoint", "Noten, Fehlzeiten, Hausaufgaben", Icons.Rounded.HomeWork, "hip"))
-        add(Entry("Abwesenheiten", "Fehlzeiten ansehen und melden", Icons.Rounded.EventBusy, "absence"))
         add(Entry("Betreuung", "Abholzeiten und Betreuungsoptionen", Icons.Rounded.Schedule, "care"))
         add(Entry("Fundsachen", "Gefundenes ansehen oder melden", Icons.Rounded.Inventory2, "lost"))
         add(Entry("Protokolle", "Sitzungen, Tagesordnungen und Dateien", Icons.Rounded.Description, "protocols"))
