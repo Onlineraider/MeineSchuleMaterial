@@ -56,11 +56,9 @@ fun ScheduleScreen() {
     val myNames = buildList { students.forEach { st -> st.cls?.let { add(it) } }; when (target?.first) { "S" -> students.firstOrNull { it.id == target!!.second }?.cls?.let { add(it) }; "C" -> cl.firstOrNull { it.id == target!!.second }?.name?.let { add(it) }; "G" -> gr.firstOrNull { it.id == target!!.second }?.name?.let { add(it) } } }
     val planNames = when (target?.first) { "S" -> listOfNotNull(students.firstOrNull { it.id == target!!.second }?.cls); "C" -> listOfNotNull(cl.firstOrNull { it.id == target!!.second }?.name); "G" -> listOfNotNull(gr.firstOrNull { it.id == target!!.second }?.name); else -> emptyList() }
     val end = weekStart.plusDays(4)
-    var times by remember { mutableStateOf(LessonTimes.parse(app.prefs.lessonTimes)) }; var editTimes by remember { mutableStateOf(false) }
     var detailOf by remember { mutableStateOf<Triple<ScheduleDay, Slot, LessonEntry>?>(null) }
 
     PageScaffold(title = "Stundenplan", subtitle = "Deine Woche · ${Dates.range(weekStart, end)}", actions = {
-        IconButton(onClick = { editTimes = true }) { Icon(Icons.Rounded.Schedule, "Unterrichtszeiten") }
         FilledTonalButton(onClick = { val t = if (today.dayOfWeek.value <= 5) today else today.plusDays((8 - today.dayOfWeek.value).toLong()); weekStart = Dates.weekStart(t); selected = t }, shapes = ButtonDefaults.shapes(), modifier = Modifier.padding(end = 8.dp)) { Icon(Icons.Rounded.Today, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("Heute") }
     }) { pad ->
         Column(Modifier.padding(top = pad.calculateTopPadding()).fillMaxSize()) {
@@ -91,7 +89,8 @@ fun ScheduleScreen() {
                 Column {
                     if (ch.isNotEmpty()) { val nx = ch.count { it.third.cancelled }; InfoBanner("Diese Woche: " + listOfNotNull(nx.takeIf { it > 0 }?.let { "$it Entfall" + if (it > 1) "e" else "" }, (ch.size - nx).takeIf { it > 0 }?.let { "$it Änderung" + if (it > 1) "en" else "" }).joinToString(" · "), Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
                     val dayShown = sched.days.firstOrNull { it.date == selected }
-                    val eff = if (app.prefs.lessonTimes == null && sched.startTimes.isNotEmpty()) LessonTimes.fromStarts(sched.startTimes) else times
+                    LaunchedEffect(sched.startTimes) { if (sched.startTimes.isNotEmpty()) app.prefs.portalStarts = sched.startTimes.joinToString(",") }
+                    val eff = app.prefs.effectiveTimes(sched.startTimes)
                     if (view == PlanView.Day) sched.infoFor(selected).forEach { i -> listOfNotNull(i.public, i.teachers?.let { "Lehrkräfte: $it" }).forEach { t -> InfoBanner(t, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
                     val spatial = MaterialTheme.motionScheme.defaultSpatialSpec<androidx.compose.ui.unit.IntOffset>(); val spatialF = MaterialTheme.motionScheme.defaultSpatialSpec<Float>()
                     val fade = MaterialTheme.motionScheme.defaultEffectsSpec<Float>(); val fastFade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
@@ -106,12 +105,11 @@ fun ScheduleScreen() {
             }
         }
     }
-    ScheduleDialogs(detailOf, times, editTimes, { detailOf = null }, { editTimes = false }) { v -> times = v; app.prefs.lessonTimes = LessonTimes.serialize(v); editTimes = false }
+    ScheduleDialogs(detailOf, app.prefs.effectiveTimes()) { detailOf = null }
 }
 
-@Composable private fun ScheduleDialogs(detail: Triple<ScheduleDay, Slot, LessonEntry>?, times: List<TimeRange>, edit: Boolean, onCloseDetail: () -> Unit, onCloseEdit: () -> Unit, onSave: (List<TimeRange>) -> Unit) {
+@Composable private fun ScheduleDialogs(detail: Triple<ScheduleDay, Slot, LessonEntry>?, times: List<TimeRange>, onCloseDetail: () -> Unit) {
     detail?.let { DetailDialog(it, times, onCloseDetail) }
-    if (edit) TimesDialog(times, onSave, onCloseEdit)
 }
 
 @Composable private fun WeekDropdown(current: LocalDate, today: LocalDate, modifier: Modifier, onPick: (LocalDate) -> Unit) {
@@ -205,12 +203,12 @@ fun ScheduleScreen() {
     })
 }
 
-@Composable private fun TimesDialog(initial: List<TimeRange>, onSave: (List<TimeRange>) -> Unit, onDismiss: () -> Unit) {
+@Composable internal fun TimesDialog(initial: List<TimeRange>, onSave: (List<TimeRange>) -> Unit, onDismiss: () -> Unit) {
     var rows by remember { mutableStateOf(initial.map { it.from to it.to }) }
     val ok = Regex("\\d\\d:\\d\\d")
     AlertDialog(onDismissRequest = onDismiss, title = { Text("Unterrichtszeiten") },
         text = { Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text("Das Portal liefert keine Uhrzeiten – hier stellst du die Zeiten deiner Schule ein (Format HH:MM).", style = MaterialTheme.typography.bodySmall)
+            Text("Eigene Zeiten (Format HH:MM). Ohne eigene Zeiten nutzt die App die Startzeiten des Portals.", style = MaterialTheme.typography.bodySmall)
             rows.forEachIndexed { i, (a, b) -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("${i + 1}.", Modifier.width(24.dp))
                 OutlinedTextField(a, { v -> rows = rows.toMutableList().also { it[i] = v to b } }, Modifier.weight(1f), singleLine = true, isError = !ok.matches(a))

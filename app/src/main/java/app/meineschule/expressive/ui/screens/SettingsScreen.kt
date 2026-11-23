@@ -29,6 +29,7 @@ import app.meineschule.expressive.Prefs
 import app.meineschule.expressive.ui.components.*
 import app.meineschule.expressive.work.Notifier
 import app.meineschule.expressive.net.DebugLog
+import app.meineschule.expressive.data.LessonTimes
 import kotlinx.coroutines.launch
 
 /** Vollständiges Abmelden: Tokens, Sitzung, Hub, Hintergrundjobs und heruntergeladene Dateien werden entfernt. */
@@ -64,6 +65,20 @@ fun SettingsScreen(onBack: () -> Unit, nav: androidx.navigation.NavHostControlle
                 item { SectionTitle("Debug") }
                 item { SwitchRow("Debug-Modus aktiv", "Server-Antworten werden nur im Arbeitsspeicher protokolliert (ohne Tokens/Passwörter). Zum Beenden 7× auf „Einstellungen“ tippen.", true, true, Icons.Rounded.BugReport) { app.prefs.setDebug(it) } }
                 item { Box(Modifier.padding(horizontal = 16.dp)) { FilledTonalButton({ nav.navigate("debuglog") }, Modifier.fillMaxWidth()) { Icon(Icons.Rounded.DataObject, null); Spacer(Modifier.width(8.dp)); Text("Antwort-Log ansehen (${DebugLog.entries.collectAsState().value.size})") } } }
+            }
+            item { SectionTitle("Stundenzeiten") }
+            item {
+                var custom by remember { mutableStateOf(app.prefs.lessonTimes != null) }; var edit by remember { mutableStateOf(false) }
+                val eff = app.prefs.effectiveTimes()
+                Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) { Text("Eigene Zeiten verwenden", style = MaterialTheme.typography.titleMedium); Text(if (custom) "Du hast eigene Unterrichtszeiten festgelegt." else "Standard: Startzeiten deines Schulportals (Ende = Start + 45 Minuten).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Switch(custom, { on -> custom = on; if (on) { if (app.prefs.lessonTimes == null) app.prefs.lessonTimes = LessonTimes.serialize(eff); edit = true } else app.prefs.lessonTimes = null })
+                    }
+                    Text(eff.mapIndexed { i, t -> "${i + 1}. ${t.from}–${t.to}" }.joinToString("  ·  "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    if (custom) FilledTonalButton({ edit = true }, shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.Schedule, null); Spacer(Modifier.width(8.dp)); Text("Zeiten bearbeiten") }
+                }
+                if (edit) TimesDialog(eff, { v -> app.prefs.lessonTimes = LessonTimes.serialize(v); edit = false }, { edit = false; if (app.prefs.lessonTimes == null) custom = false })
             }
             item { SectionTitle("Sprache") }
             item {

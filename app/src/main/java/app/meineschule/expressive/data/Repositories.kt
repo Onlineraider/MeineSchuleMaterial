@@ -21,7 +21,7 @@ class Repos(private val api: ApiClient, private val portal: PortalClient) {
         suspend fun index(): SchoolInfo = J(api.get(api.scoped("School/Index"))).let { s ->
             SchoolInfo(s.str("name").orEmpty(), s.strings("roles"), s.arr("features").map { it.raw?.toString()?.trim('"').orEmpty() }, s.arr("students").map { it.toStudent() },
                 s.arr("links").map { SchoolLink(it.str("title").orEmpty(), it.str("url").orEmpty(), it.str("appMode") ?: "Disabled") }, s.arr("translationLanguages").map { Language(it.str("key", "id", "code").orEmpty(), it.str("name", "displayName") ?: it.str("key").orEmpty()) },
-                s.bool("userHasHIPAccess") == true, s.bool("canUseMessenger") == true, s.bool("canCreateAbsences") == true, s.bool("canCreateLostAndFound") == true,
+                s.bool("userHasHIPAccess") == true, s.bool("canUseMessenger") != false, s.bool("canCreateAbsences") == true, s.bool("canCreateLostAndFound") == true,
                 s.bool("canCreateProtocol") == true, s.bool("canCreateMediaItems") == true, s.bool("canCreateCalendarItems") == true, s.bool("hasStudentProperties") == true)
         }
         suspend fun state(): SchoolState = J(api.get(api.scoped("School/State"))).let { s ->

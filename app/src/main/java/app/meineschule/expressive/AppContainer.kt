@@ -41,6 +41,14 @@ class Prefs(ctx: Context) {
     fun setShareBase(v: String) { shareBase.value = v; sp.edit().putString("shareBase", v).apply() }
     fun setAvatars(v: Boolean) { avatars.value = v; sp.edit().putBoolean("avatars", v).apply() }
     /** Lernstände der Unterrichtszeiten (Portal liefert keine Uhrzeiten) */
+    /** Zuletzt vom Portal gelieferte Startzeiten (für die Standard-Stundenzeiten, auch außerhalb des Stundenplans). */
+    var portalStarts: String get() = sp.getString("portalStarts", "") ?: ""; set(v) { sp.edit().putString("portalStarts", v).apply() }
+    /** Stundenzeiten: eigene Zeiten, sonst Portal-Startzeiten (+45 min), sonst Standard. */
+    fun effectiveTimes(starts: List<String> = emptyList()): List<TimeRange> {
+        LessonTimes.parse(lessonTimes.takeIf { it != null }).takeIf { lessonTimes != null }?.let { return it }
+        val s = starts.ifEmpty { portalStarts.split(',').filter { it.isNotBlank() } }
+        return if (s.isNotEmpty()) LessonTimes.fromStarts(s).ifEmpty { LessonTimes.DEFAULT } else LessonTimes.DEFAULT
+    }
     var lessonTimes: String? get() = sp.getString("lessonTimes", null); set(v) { sp.edit().putString("lessonTimes", v).apply() }
 
     fun setMode(v: Mode) { mode.value = v; sp.edit().putString("mode", v.name).apply() }
