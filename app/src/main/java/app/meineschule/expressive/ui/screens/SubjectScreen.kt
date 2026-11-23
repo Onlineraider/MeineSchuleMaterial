@@ -79,11 +79,11 @@ fun SubjectScreen(name: String, studentId: String?, nav: NavHostController) {
                 }
 
                 // Noten
-                val grades = hip?.of(HipClass.Grd).orEmpty().filter { t ->
-                    val n = Regex("^\\s*\\p{L}{1,6}\\s*[-–]\\s*(.+)$").find(t.title)?.groupValues?.get(1) ?: t.title
+                val grades = hip?.tables.orEmpty().filter { it.cls == HipClass.Grd || it.cls == HipClass.Rem }.filter { t ->
+                    val n = Regex("\\p{L}{1,6}\\s*[-–]\\s*([^:]+)$").find(t.title.trim())?.groupValues?.get(1)?.trim() ?: t.title.substringAfterLast(':').trim()
                     SubjectMatch.resolve(n, names, hm, ov.alias) == subject.name || SubjectMatch.mentions(t.title, subject.name, names, hm, ov.alias)
                 }
-                val gRows = grades.flatMap { t -> t.rows.map { HipRow.of(HipClass.Grd, t, it) } }
+                val gRows = grades.flatMap { t -> t.rows.map { HipRow.of(t.cls, t, it) } }.filter { it.grade != null }
                 if (gRows.isNotEmpty()) {
                     val avg = gRows.mapNotNull { it.grade?.replace(',', '.')?.toDoubleOrNull() }.filter { it in 1.0..6.0 }.let { if (it.isEmpty()) null else it.average() }
                     item { SectionTitle("Noten", trailing = { avg?.let { Text("Ø " + "%.2f".format(it).replace('.', ','), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) } }) }
@@ -101,7 +101,7 @@ fun SubjectScreen(name: String, studentId: String?, nav: NavHostController) {
                 val abs = (absL.state as? UiState.Ready)?.data.orEmpty()
                 if (hip != null) {
                     item { SectionTitle("Fehlstunden", trailing = { if (absL.state is UiState.Loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else if (abs.isNotEmpty()) Text("${abs.sumOf { it.second }} gesamt", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }) }
-                    if (abs.isEmpty() && absL.state !is UiState.Loading) item { Text("Keine Fehlstunden in diesem Fach (letzte 4 Monate).", Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    if (abs.isEmpty() && absL.state !is UiState.Loading) item { Text(((absL.state as? UiState.Ready)?.data?.size ?: 0).let { "Keine Fehlstunden in diesem Fach gefunden (letzte 4 Monate; Zuordnung über den Stundenplan der jeweiligen Woche)." }, Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                     itemsIndexed(abs) { i, (d, n) -> GroupedItem(i, abs.size, Dates.dayLong(d), supporting = "$n ${if (n == 1) "Stunde" else "Stunden"} gefehlt", leading = { TileIcon(Icons.Rounded.EventBusy) }) }
                 }
 

@@ -113,15 +113,19 @@ class Subjects(private val c: AppContainer) {
     /** Fehlstunden je Fach: Fehlzeiten des Home.InfoPoint werden über den Stundenplan der jeweiligen Woche dem Fach zugeordnet. */
     suspend fun absences(sub: Subject, studentId: String, hip: HipData, all: List<String>, hipMap: Map<String, String>, alias: Map<String, String>, from: LocalDate = LocalDate.now().minusDays(120)): List<Pair<LocalDate, Int>> = coroutineScope {
         val ent = HipParser.absSummary(hip.of(HipClass.Abs)).entries
-        val hit = ent.mapNotNull { e -> Dates.date(Regex("(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4})").find(e.day)?.let { m -> "%s-%02d-%02d".format(m.groupValues[3], m.groupValues[2].toInt(), m.groupValues[1].toInt()) }) ?.let { it to e } }
+        val hit = ent.mapNotNull { e -> Dates.date(Regex("(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}|\\d{2})").find(e.day)?.let { m -> "%s-%02d-%02d".format(m.groupValues[3].let { y -> if (y.length == 2) "20$y" else y }, m.groupValues[2].toInt(), m.groupValues[1].toInt()) }) ?.let { it to e } }
             .filter { it.first >= from }.sortedByDescending { it.first }.take(40)
         val gate = Semaphore(3)
         hit.map { (d, e) -> async {
             val ws = Dates.weekStart(d); val key = "${c.api.school}:$studentId:$ws"
             val sch = weeks[key] ?: gate.withPermit { runCatching { c.repos.schedule(ws, studentId) }.getOrNull() }?.also { weeks[key] = it } ?: return@async null
             val day = sch.days.firstOrNull { it.date == d } ?: return@async null
-            val whole = Regex("ganz|tag", RegexOption.IGNORE_CASE).containsMatchIn(e.text) && !Regex("stunde", RegexOption.IGNORE_CASE).containsMatchIn(e.text)
-            val hours = if (whole) day.slots.indices.map { it + 1 }.toSet() else Regex("(\\d{1,2})\\.?\\s*(?:-|–|bis)\\s*(\\d{1,2})\\.?").findAll(e.text).flatMap { m -> (m.groupValues[1].toInt()..m.groupValues[2].toInt()).toList() }.toSet().ifEmpty { Regex("(\\d{1,2})\\.?\\s*Stunde").findAll(e.text).map { it.groupValues[1].toInt() }.toSet() }
+            // Einträge wie „Ganzer Tag (Entschuldigt), 3. bis 4. Std. (Unentschuldigt)“ je Segment auswerten
+            val hours = mutableSetOf<Int>()
+            e.text.split(Regex("\\s*,\\s*")).forEach { seg ->
+                val r = Regex("(\\d{1,2})\\.?\\s*(?:bis|-|–)\\s*(\\d{1,2})").find(seg); val one = Regex("(\\d{1,2})\\.?\\s*(?:Std|Stunde)", RegexOption.IGNORE_CASE).find(seg)
+                when { Regex("ganz", RegexOption.IGNORE_CASE).containsMatchIn(seg) -> hours += day.slots.map { it.index + 1 }; r != null -> hours += (r.groupValues[1].toInt()..r.groupValues[2].toInt()); one != null -> hours += one.groupValues[1].toInt() }
+            }
             val n = hours.count { h -> (day.slots.firstOrNull { it.index == h - 1 } ?: day.slots.getOrNull(h - 1))?.entries.orEmpty().any { en -> SubjectMatch.resolve(en.subject, all, hipMap, alias) == sub.name } }
             if (n > 0) d to n else null
         } }.awaitAll().filterNotNull().sortedByDescending { it.first }

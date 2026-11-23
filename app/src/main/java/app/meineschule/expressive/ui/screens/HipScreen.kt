@@ -84,7 +84,7 @@ internal data class HipRow(val title: String, val body: String?, val date: Strin
         fun of(cls: HipClass, t: HipTable, r: List<String>): HipRow {
             val heads = r.indices.map { t.head.getOrNull(it).orEmpty().trim() }
             val di = r.indices.firstOrNull { DATE.matches(r[it].trim()) || heads[it].contains("datum", true) && r[it].isNotBlank() } ?: -1
-            val gi = if (cls == HipClass.Grd) heads.indexOfFirst { Regex("note|zensur|bewertung", RegexOption.IGNORE_CASE).containsMatchIn(it) } else -1
+            val gi = if (cls != HipClass.Abs) heads.indexOfFirst { Regex("note|zensur|bewertung", RegexOption.IGNORE_CASE).containsMatchIn(it) } else -1
             val rest = r.indices.filter { it != di && it != gi && r[it].isNotBlank() }
             val date = r.getOrNull(di)?.takeIf { di >= 0 }
             val fields = buildList {
