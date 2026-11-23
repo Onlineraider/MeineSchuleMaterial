@@ -76,9 +76,9 @@ fun MainShell() {
         NavHost(
             nav, startDestination = Dest.Home.route,
             enterTransition = { fadeIn(effects) + slideInHorizontally(slideSpec) { it / 12 } + scaleIn(spatial, .96f) },
-            exitTransition = { fadeOut(fastEffects) + scaleOut(spatial, .98f) },
-            popEnterTransition = { fadeIn(effects) + scaleIn(spatial, .98f) },
-            popExitTransition = { fadeOut(fastEffects) + slideOutHorizontally(slideSpec) { it / 12 } },
+            exitTransition = { fadeOut(fastEffects) + scaleOut(spatial, .96f) + slideOutHorizontally(slideSpec) { -it / 10 } },
+            popEnterTransition = { fadeIn(effects) + scaleIn(spatial, .96f) + slideInHorizontally(slideSpec) { -it / 10 } },
+            popExitTransition = { fadeOut(fastEffects) + scaleOut(spatial, .96f) + slideOutHorizontally(slideSpec) { it / 4 } },
         ) {
             composable(Dest.Home.route) { HomeScreen(nav) }
             composable(Dest.Plan.route) { ScheduleScreen(onSubject = { n, sid -> nav.navigate("subject?n=${Uri.encode(n)}" + (sid?.let { "&s=${Uri.encode(it)}" } ?: "")) }) }

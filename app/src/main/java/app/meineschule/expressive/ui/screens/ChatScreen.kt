@@ -9,6 +9,8 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
@@ -144,6 +146,13 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
             out += Row.Msg(m.copy(own = own(m)), prev == null || prev.authorId != m.authorId || own(prev) != own(m), next == null || next.authorId != m.authorId || own(next) != own(m)) } }
         out.reversed()
     }
+    var flash by remember { mutableStateOf<String?>(null) }; var jumpTo by remember { mutableStateOf<String?>(null) }; var fullText by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(jumpTo, rows) {
+        val id = jumpTo ?: return@LaunchedEffect
+        val idx = rows.indexOfFirst { it is Row.Msg && it.m.id == id }
+        if (idx >= 0) { jumpTo = null; listState.animateScrollToItem(idx); flash = id; kotlinx.coroutines.delay(1600); flash = null }
+        else if (ctl.reachedStart) { jumpTo = null; toast("Die ursprüngliche Nachricht ist nicht mehr vorhanden") } else ctl.loadOlder()
+    }
     val nearEnd by remember { derivedStateOf { val l = listState.layoutInfo; (l.visibleItemsInfo.lastOrNull()?.index ?: 0) >= l.totalItemsCount - 4 } }
     LaunchedEffect(nearEnd, ctl.version, query) { if (nearEnd || query.isNotBlank()) ctl.loadOlder() }
 
@@ -177,13 +186,13 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
         bottomBar = {
             if (c?.canPost != false) Column(Modifier.background(cs.surface).navigationBarsPadding().imePadding().padding(horizontal = 12.dp, vertical = 8.dp)) {
                 replyTo?.let { r -> Row(Modifier.fillMaxWidth().padding(bottom = 6.dp).clip(RoundedCornerShape(16.dp)).background(cs.secondaryContainer).padding(start = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Antwort an ${r.authorName ?: "Nachricht"}: ${r.content.ifBlank { r.attachmentName.orEmpty() }}", Modifier.weight(1f), maxLines = 1, style = MaterialTheme.typography.bodyMedium); IconButton(onClick = { replyTo = null }) { Icon(Icons.Rounded.Close, "Antwort verwerfen") } } }
+                    Icon(Icons.AutoMirrored.Rounded.Reply, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Antwort an ${r.authorName ?: "Nachricht"}: ${r.content.take(160).ifBlank { r.attachmentName.orEmpty() }}", Modifier.weight(1f), maxLines = 1, style = MaterialTheme.typography.bodyMedium); IconButton(onClick = { replyTo = null }) { Icon(Icons.Rounded.Close, "Antwort verwerfen") } } }
                 if (picked.isNotEmpty()) Row(Modifier.padding(bottom = 6.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) { picked.forEach { p -> InputChip(true, { picked = picked - p }, { Text(Urls.safeFileName(p.third), maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.AttachFile, null, Modifier.size(18.dp)) }, trailingIcon = { Icon(Icons.Rounded.Close, "Entfernen", Modifier.size(18.dp)) }) } }
                 if (emojiPanel) Row(Modifier.padding(bottom = 6.dp).clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainerHigh).horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp, vertical = 4.dp)) { PICKER_EMOJIS.forEach { e -> Text(e, Modifier.clickable { input += e }.padding(6.dp), style = MaterialTheme.typography.titleLarge) } }
                 Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconButton(onClick = { emojiPanel = !emojiPanel }, Modifier.size(48.dp)) { Icon(Icons.Rounded.SentimentSatisfied, "Emoji wählen") }
                     IconButton(onClick = { pick.launch("*/*") }, Modifier.size(48.dp)) { Icon(Icons.Rounded.AttachFile, "Anhang hinzufügen") }
-                    TextField(input, { input = it }, Modifier.weight(1f), placeholder = { Text("Nachricht schreiben …") }, maxLines = 5, shape = RoundedCornerShape(26.dp),
+                    TextField(input, { input = it.take(MAX_LEN) }, Modifier.weight(1f), placeholder = { Text("Nachricht schreiben …") }, maxLines = 5, shape = RoundedCornerShape(26.dp),
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                         colors = TextFieldDefaults.colors(focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent, unfocusedContainerColor = cs.surfaceContainerHigh, focusedContainerColor = cs.surfaceContainerHigh))
                     FilledIconButton(onClick = { ctl.send(input.trim(), picked, replyTo?.id, ::toast); input = ""; picked = emptyList(); replyTo = null; emojiPanel = false }, Modifier.size(52.dp), enabled = input.isNotBlank() || picked.isNotEmpty(), shape = RoundedCornerShape(18.dp)) { Icon(Icons.AutoMirrored.Rounded.Send, "Senden") }
@@ -200,7 +209,7 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
                     itemsIndexed(rows, key = { _, r -> when (r) { is Row.Day -> "d:${r.label}"; is Row.Msg -> "m:${r.m.id}" } }) { _, r ->
                         when (r) {
                             is Row.Day -> Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) { Text(r.label, Modifier.clip(RoundedCornerShape(12.dp)).background(cs.surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant) }
-                            is Row.Msg -> Bubble(r, chatId, query, onLong = { actionFor = r.m }, onRetry = { ctl.retry(r.m, ::toast) }, onReact = { e -> ctl.react(r.m, e, ::toast) }, onMore = { emojiFor = r.m },
+                            is Row.Msg -> Bubble(r, chatId, query, onLong = { actionFor = r.m }, onRetry = { ctl.retry(r.m, ::toast) }, onReact = { e -> ctl.react(r.m, e, ::toast) }, onMore = { emojiFor = r.m }, flash = flash == r.m.id, onQuote = { r.m.replyId?.let { query = ""; jumpTo = it } }, onFull = { fullText = r.m.content },
                                 onAuthor = { r.m.authorId?.let { id -> nav.navigate("person?u=${Urls.seg(id)}&n=${Urls.seg(r.m.authorName.orEmpty())}") } })
                         }
                     }
@@ -225,6 +234,8 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
             FlowRowCompat { PICKER_EMOJIS.forEach { e -> Text(e, Modifier.clip(CircleShape).clickable { emojiFor = null; ctl.react(m, e, ::toast) }.padding(10.dp), style = MaterialTheme.typography.headlineSmall) } }
             if (m.myVote != null) TextButton({ emojiFor = null; ctl.react(m, null, ::toast) }) { Text("Meine Reaktion entfernen") } } } }
     deleteFor?.let { m -> ConfirmDialog("Nachricht löschen?", "Die Nachricht wird gelöscht, soweit du dazu berechtigt bist.", "Löschen", { ctl.delete(listOf(m.id), ::toast) }, { deleteFor = null }, destructive = true) }
+    fullText?.let { t -> val chunks = remember(t) { t.chunked(1500) }
+        ModalBottomSheet({ fullText = null }) { androidx.compose.foundation.text.selection.SelectionContainer { LazyColumn(Modifier.fillMaxWidth(), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)) { items(chunks.size) { Text(chunks[it], style = MaterialTheme.typography.bodyLarge) } } } } }
     if (confirmDeleteChat) ConfirmDialog("Chat löschen?", "„${c?.name}“ wird für alle gelöscht. Das kann nicht rückgängig gemacht werden.", "Löschen", { scope.launch { try { app.repos.messenger.deleteChat(chatId); nav.popBackStack() } catch (e: Throwable) { toast(e.asApi().userText) } } }, { confirmDeleteChat = false }, destructive = true)
     if (showInfo) ChatInfoSheet(chatId, c, onDismiss = { showInfo = false }, nav = nav)
 }
@@ -265,6 +276,9 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
     }
 }
 
+private const val MAX_LEN = 4000
+private const val BUBBLE_MAX = 1200
+
 /** URLs im Text antippbar machen (nur http/https). */
 private val URL_RE = Regex("""\b(?:https?://|www\.)[^\s<>"]+""", RegexOption.IGNORE_CASE)
 private fun linkify(text: String, hl: String, linkColor: Color, hlColor: Color) = buildAnnotatedString {
@@ -280,23 +294,24 @@ private fun linkify(text: String, hl: String, linkColor: Color, hlColor: Color) 
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable private fun Bubble(r: Row.Msg, chatId: String, query: String, onLong: () -> Unit, onRetry: () -> Unit, onReact: (String?) -> Unit, onMore: () -> Unit, onAuthor: () -> Unit) {
+@Composable private fun Bubble(r: Row.Msg, chatId: String, query: String, onLong: () -> Unit, onRetry: () -> Unit, onReact: (String?) -> Unit, onMore: () -> Unit, onAuthor: () -> Unit, flash: Boolean = false, onQuote: () -> Unit = {}, onFull: () -> Unit = {}) {
     val cs = MaterialTheme.colorScheme; val m = r.m; val own = m.own == true; val ctx = LocalContext.current; val app = LocalApp.current; val scope = rememberCoroutineScope()
     fun open() { val id = m.attachmentId ?: return; scope.launch { runCatching { Files.open(ctx, app.api.bytes(app.repos.messenger.downloadUrl(chatId, id)), m.attachmentName ?: "Anhang") } } }
     Row(Modifier.fillMaxWidth().padding(top = if (r.first) 8.dp else 2.dp), horizontalArrangement = if (own) Arrangement.End else Arrangement.Start, verticalAlignment = Alignment.Bottom) {
         if (!own) Box(Modifier.width(40.dp).clickable(enabled = r.last && m.authorId != null, onClick = onAuthor)) { if (r.last) PersonAvatar(m.authorName ?: "?", m.authorId?.let { app.repos.school.avatarUrl(it) }, 32.dp, key = m.authorId ?: m.authorName ?: "") }
         Column(Modifier.widthIn(max = 300.dp)) {
-            Column(Modifier.clip(if (own) MsdShapes.BubbleOut else MsdShapes.BubbleIn).background(if (own) cs.primaryContainer else cs.surfaceContainerHigh).combinedClickable(onClick = { if (m.failed) onRetry() }, onLongClick = onLong).padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Column(Modifier.clip(if (own) MsdShapes.BubbleOut else MsdShapes.BubbleIn).background(animateColorAsState(if (flash) cs.tertiaryContainer else if (own) cs.primaryContainer else cs.surfaceContainerHigh, label = "flash").value).combinedClickable(onClick = { if (m.failed) onRetry() }, onLongClick = onLong).padding(horizontal = 14.dp, vertical = 8.dp)) {
                 if (!own && r.first && !m.authorName.isNullOrBlank()) Text(m.authorName, style = MaterialTheme.typography.labelMedium, color = cs.primary)
-                if (m.replyId != null || m.replyContent != null) Text(m.replyContent.orEmpty().ifBlank { "Anhang" }, Modifier.padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)).background(cs.surface.copy(alpha = .5f)).padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 2, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                if (m.replyId != null || m.replyContent != null) Text(m.replyContent.orEmpty().take(200).ifBlank { "Anhang" }, Modifier.padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)).background(cs.surface.copy(alpha = .5f)).clickable(enabled = m.replyId != null, onClick = onQuote).padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 2, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 if (m.hasAttachment) {
                     if (m.attachmentIsImage) AsyncImage(app.repos.messenger.downloadUrl(chatId, m.attachmentId!!), m.attachmentName, Modifier.padding(vertical = 4.dp).fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(14.dp)).clickable { open() }, contentScale = ContentScale.Crop)
                     else AssistChip(onClick = { open() }, label = { Text(m.attachmentName ?: "Anhang", maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.AttachFile, null, Modifier.size(18.dp)) })
                 } else if (m.pending && m.attachmentName != null) AssistChip(onClick = {}, label = { Text(m.attachmentName, maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.AttachFile, null, Modifier.size(18.dp)) })
                 if (m.content.isNotBlank()) {
-                    val txt = linkify(m.content, query.trim(), cs.primary, cs.tertiaryContainer)
+                    val long = m.content.length > BUBBLE_MAX; val txt = linkify(if (long) m.content.take(BUBBLE_MAX).trimEnd() + "…" else m.content, query.trim(), cs.primary, cs.tertiaryContainer)
                     val uri = androidx.compose.ui.platform.LocalUriHandler.current
-                    androidx.compose.foundation.text.ClickableText(txt, style = MaterialTheme.typography.bodyLarge.copy(color = if (own) cs.onPrimaryContainer else cs.onSurface), onClick = { off -> txt.getStringAnnotations("URL", off, off).firstOrNull()?.let { runCatching { uri.openUri(it.item) } } ?: onLong() })
+                    androidx.compose.foundation.text.ClickableText(txt, style = MaterialTheme.typography.bodyLarge.copy(color = if (own) cs.onPrimaryContainer else cs.onSurface), onClick = { off -> txt.getStringAnnotations("URL", off, off).firstOrNull()?.let { runCatching { uri.openUri(it.item) } } ?: onLong() }, maxLines = 30, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+                    if (long) TextButton(onFull, contentPadding = PaddingValues(0.dp)) { Text("Ganze Nachricht lesen") }
                 }
                 if (r.last) Row(Modifier.align(Alignment.End), verticalAlignment = Alignment.CenterVertically) {
                     Text(if (m.failed) "Senden fehlgeschlagen – tippen zum Wiederholen" else Dates.parse(m.at)?.let { Dates.time(it) }.orEmpty(), style = MaterialTheme.typography.labelSmall, color = if (m.failed) cs.error else cs.onSurfaceVariant)

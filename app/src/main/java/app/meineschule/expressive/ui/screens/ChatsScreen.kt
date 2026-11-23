@@ -69,7 +69,7 @@ fun ChatsScreen(nav: NavHostController) {
                 else LazyColumn(contentPadding = PaddingValues(bottom = 96.dp)) {
                     itemsIndexed(list, key = { _, c -> c.id.ifBlank { c.name } }) { i, c ->
                         Box(Modifier.animateItem()) {
-                            GroupedItem(i, list.size, c.name, supporting = c.teaser, unread = c.unread > 0,
+                            GroupedItem(i, list.size, c.name, supporting = c.teaser?.take(200), unread = c.unread > 0,
                                 leading = { if (c.infoChannel) TileIcon(Icons.Rounded.Campaign) else PersonAvatar(c.name, key = c.id) },
                                 trailing = { Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                     if (c.unread > 0) Badge { Text(c.unread.toString()) }
