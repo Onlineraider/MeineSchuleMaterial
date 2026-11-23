@@ -233,13 +233,33 @@ fun ScheduleScreen(onSubject: (String, String?) -> Unit = { _, _ -> }) {
                 LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) {
                     d.notes.forEach { n -> item { InfoBanner(n, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
                     if (rows.isEmpty()) item { EmptyState(Icons.Rounded.CheckCircle, "Keine Vertretungen", if (onlyMine) "Für deine Klasse gibt es an diesem Tag keine Änderungen." else "Für diesen Tag sind keine Änderungen eingetragen.") }
-                    itemsIndexed(rows) { i, r ->
-                        GroupedItem(i, rows.size, listOf(r.subject, r.group).filter { it.isNotBlank() }.joinToString(" · ").ifBlank { "Änderung" },
-                            supporting = listOfNotNull("Stunde ${r.hours}".takeIf { r.hours.isNotBlank() }, r.teacher.takeIf { it.isNotBlank() }?.let { "Lehrer: $it" }, r.room.takeIf { it.isNotBlank() }?.let { "Raum: $it" }, r.info.takeIf { it.isNotBlank() }).joinToString("\n"),
-                            container = if (r.highlighted) cs.tertiaryContainer else cs.surfaceContainer, leading = { TileIcon(if (r.highlighted) Icons.Rounded.SwapHoriz else Icons.Rounded.Schedule) })
-                    }
+                    itemsIndexed(rows) { i, r -> SubstitutionCard(r, i, rows.size, Modifier.animateItem()) }
                 }
             }
+        }
+    }
+}
+
+/** Karte für eine Vertretung: kräftige, kontrastreiche Farben je Art (Entfall / Änderung / Verlegung) und klare „alt → neu“-Zeilen. */
+@Composable private fun SubstitutionCard(r: ChangeRow, i: Int, n: Int, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    val (bg, fg) = when { r.cancelled -> cs.errorContainer to cs.onErrorContainer; r.moved -> cs.secondaryContainer to cs.onSecondaryContainer; else -> cs.tertiaryContainer to cs.onTertiaryContainer }
+    fun arrow(s: String) = s.replace(" > ", " \u2192 ")
+    val big = r.hours.substringBefore(' ').ifBlank { "–" }
+    Row(modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp).fillMaxWidth().clip(MsdShapes.listShape(i, n)).background(bg).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+        Column(Modifier.width(56.dp).clip(RoundedCornerShape(16.dp)).background(fg.copy(alpha = .14f)).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Std.", style = MaterialTheme.typography.labelSmall, color = fg); Text(big.substringBefore('>').trim(), style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg)
+        }
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(arrow(r.subject.ifBlank { "Änderung" }), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg, textDecoration = if (r.cancelled) TextDecoration.LineThrough else null, modifier = Modifier.weight(1f, fill = false))
+                Icon(if (r.cancelled) Icons.Rounded.EventBusy else Icons.Rounded.SwapHoriz, null, Modifier.size(18.dp), tint = fg)
+            }
+            if (r.group.isNotBlank()) Text(arrow(r.group), style = MaterialTheme.typography.labelLarge, color = fg)
+            Text(when { r.cancelled -> "Entfällt"; r.moved -> "Verlegt: ${arrow(r.hours)}"; else -> "Änderung" }, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg)
+            if (r.teacher.isNotBlank()) Text("Lehrkraft: ${arrow(r.teacher)}", style = MaterialTheme.typography.bodyMedium, fontWeight = if (" > " in r.teacher) androidx.compose.ui.text.font.FontWeight.Bold else null, color = fg)
+            if (r.room.isNotBlank()) Text("Raum: ${arrow(r.room)}", style = MaterialTheme.typography.bodyMedium, fontWeight = if (" > " in r.room) androidx.compose.ui.text.font.FontWeight.Bold else null, color = fg)
+            if (r.info.isNotBlank()) Text(r.info, style = MaterialTheme.typography.bodyMedium, color = fg)
         }
     }
 }

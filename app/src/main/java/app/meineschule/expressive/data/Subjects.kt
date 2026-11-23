@@ -135,7 +135,7 @@ class Subjects(private val c: AppContainer) {
     }
 
     data class AbsRow(val date: LocalDate, val hours: Int, val info: String?)
-    data class AbsResult(val rows: List<AbsRow>, val unknownDays: Int, val checked: Int)
+    data class AbsResult(val rows: List<AbsRow>, val unknownDays: Int, val checked: Int, val detail: List<String> = emptyList())
 
     /** Fehlstunden je Fach: Fehlzeiten des Home.InfoPoint werden über den (lokal gespeicherten) Stundenplan dem Fach zugeordnet; entfallene Stunden zählen nicht. Dazu der Unterrichtsinhalt/die Hausaufgabe jenes Tages. */
     suspend fun absences(sub: Subject, studentId: String, hip: HipData, all: List<String>, hipMap: Map<String, String>, alias: Map<String, String>): AbsResult = coroutineScope {
@@ -146,7 +146,7 @@ class Subjects(private val c: AppContainer) {
         // fehlende Wochen noch beim Portal versuchen (klappt nur für die letzten Wochen) und lokal sichern
         hit.map { it.first }.filter { store[it.toString()] == null }.map { Dates.weekStart(it) }.distinct().take(8).map { ws -> async { gate.withPermit { runCatching { remember(studentId, c.repos.schedule(ws, studentId)) } } } }.awaitAll()
         store = ttLoad(studentId)
-        var unknown = 0
+        var unknown = 0; val detail = mutableListOf<String>()
         val rows = hit.mapNotNull { (d, es) ->
             val day = store[d.toString()]; if (day == null) { unknown++; return@mapNotNull null }
             val hours = mutableSetOf<Int>()
@@ -154,6 +154,7 @@ class Subjects(private val c: AppContainer) {
                 val r = Regex("(\\d{1,2})\\.?\\s*(?:bis|-|–)\\s*(\\d{1,2})").find(seg); val one = Regex("(\\d{1,2})\\.?\\s*(?:Std|Stunde)", RegexOption.IGNORE_CASE).find(seg)
                 when { Regex("ganz", RegexOption.IGNORE_CASE).containsMatchIn(seg) -> hours += day.keys.mapNotNull { it.toIntOrNull() }; r != null -> hours += (r.groupValues[1].toInt()..r.groupValues[2].toInt()); one != null -> hours += one.groupValues[1].toInt() }
             } }
+            detail += "${Dates.dayShort(d)}: Std. ${hours.sorted().joinToString(",")} → " + hours.sorted().joinToString(", ") { h -> day[h.toString()].orEmpty().joinToString("/").ifBlank { "–" } }
             val n = hours.count { h -> day[h.toString()].orEmpty().any { s -> !s.startsWith("!") && SubjectMatch.resolve(s, all, hipMap, alias) == sub.name } }
             if (n == 0) return@mapNotNull null
             // Was war an dem Tag? Unterrichtsinhalt/Hausaufgaben des Fachs vom selben Datum
@@ -161,6 +162,6 @@ class Subjects(private val c: AppContainer) {
             val info = (hip.of(HipClass.Les) + hip.of(HipClass.Hw)).flatMap { t -> t.rows.filter { r -> r.any { cell -> dd.find(cell)?.let { m -> Dates.date(m.value.split('.').let { p -> "%s-%02d-%02d".format(p[2].let { y -> if (y.length == 2) "20$y" else y }, p[1].toInt(), p[0].toInt()) }) == d } == true } && (r.any { SubjectMatch.mentions(it, sub.name, all, hipMap, alias) } || SubjectMatch.mentions(t.title, sub.name, all, hipMap, alias)) }.map { r -> r.filter { it.isNotBlank() && dd.matchEntire(it.trim()) == null }.joinToString(" · ") } }.filter { it.isNotBlank() }.distinct().joinToString("\n").ifBlank { null }
             AbsRow(d, n, info)
         }
-        AbsResult(rows, unknown, hit.size)
+        AbsResult(rows, unknown, hit.size, detail)
     }
 }
