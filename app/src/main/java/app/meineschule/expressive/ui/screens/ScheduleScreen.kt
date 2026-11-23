@@ -89,6 +89,7 @@ fun ScheduleScreen(onSubject: (String, String?) -> Unit = { _, _ -> }) {
                 Column {
                     if (ch.isNotEmpty()) { val nx = ch.count { it.third.cancelled }; InfoBanner("Diese Woche: " + listOfNotNull(nx.takeIf { it > 0 }?.let { "$it Entfall" + if (it > 1) "e" else "" }, (ch.size - nx).takeIf { it > 0 }?.let { "$it Änderung" + if (it > 1) "en" else "" }).joinToString(" · "), Icons.Rounded.SwapHoriz, warn = true, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) }
                     val dayShown = sched.days.firstOrNull { it.date == selected }
+                    LaunchedEffect(sched) { target?.takeIf { it.first == "S" }?.let { app.subjects.remember(it.second, sched) } }
                     LaunchedEffect(sched.startTimes) { if (sched.startTimes.isNotEmpty()) app.prefs.portalStarts = sched.startTimes.joinToString(",") }
                     val eff = app.prefs.effectiveTimes(sched.startTimes)
                     if (view == PlanView.Day) sched.infoFor(selected).forEach { i -> listOfNotNull(i.public, i.teachers?.let { "Lehrkräfte: $it" }).forEach { t -> InfoBanner(t, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }

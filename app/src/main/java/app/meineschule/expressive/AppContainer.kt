@@ -125,6 +125,7 @@ class Session(private val c: AppContainer) {
         generation.update { it + 1 }
         coroutineScope { launch { school.value = runCatching { c.repos.school.index() }.getOrNull() }; launch { state.value = runCatching { c.repos.school.state() }.getOrNull() } }
         val st = school.value?.students.orEmpty(); val gen = generation.value
+        c.scope.launch { st.take(3).forEach { s -> runCatching { c.subjects.sync(s.id) } } }
         c.scope.launch { runCatching { c.contacts.harvest(st, c.repos.messenger.index()) }; if (generation.value != gen) c.contacts.reset() }
     }
     suspend fun switchSchool(t: String) { if (t != tag.value) activate(t) }

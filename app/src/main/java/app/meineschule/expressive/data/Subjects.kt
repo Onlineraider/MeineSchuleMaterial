@@ -110,24 +110,57 @@ class Subjects(private val c: AppContainer) {
             .sortedByDescending { it.at.orEmpty() }
     }
 
-    /** Fehlstunden je Fach: Fehlzeiten des Home.InfoPoint werden über den Stundenplan der jeweiligen Woche dem Fach zugeordnet. */
-    suspend fun absences(sub: Subject, studentId: String, hip: HipData, all: List<String>, hipMap: Map<String, String>, alias: Map<String, String>, from: LocalDate = LocalDate.now().minusDays(120)): List<Pair<LocalDate, Int>> = coroutineScope {
+    // ---- Lokaler Stundenplan-Speicher: das Portal liefert nur etwa die letzten 3 Wochen, Fehlzeiten reichen weiter zurück ----
+    private val ttLock = Any()
+    private fun ttFile(studentId: String) = java.io.File(c.context.filesDir, "timetable-${(c.api.school ?: "x").filter { it.isLetterOrDigit() }}-${studentId.filter { it.isLetterOrDigit() }}.json")
+    private val ttSer = kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.builtins.serializer<String>(), kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.builtins.serializer<String>(), kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer<String>())))
+    private fun ttLoad(studentId: String): MutableMap<String, Map<String, List<String>>> = synchronized(ttLock) { runCatching { kotlinx.serialization.json.Json.decodeFromString(ttSer, ttFile(studentId).readText()).toMutableMap() }.getOrDefault(mutableMapOf()) }
+
+    /** Gelesene Plantage lokal merken (Fach je Stunde, mit „!“ vor entfallenen Stunden). */
+    fun remember(studentId: String, sch: Schedule) {
+        if (sch.days.isEmpty()) return
+        synchronized(ttLock) {
+            val m = ttLoad(studentId)
+            sch.days.forEach { d -> if (d.slots.any { it.entries.isNotEmpty() }) m[d.date.toString()] = d.slots.filter { it.entries.isNotEmpty() }.associate { sl -> (sl.index + 1).toString() to sl.entries.map { (if (it.cancelled) "!" else "") + it.subject } } }
+            runCatching { ttFile(studentId).writeText(kotlinx.serialization.json.Json.encodeToString(ttSer, m)) }
+        }
+    }
+    /** Einmal täglich die erreichbaren Wochen (heute −3 … +1) sichern, damit später auch ältere Fehlzeiten zugeordnet werden können. */
+    suspend fun sync(studentId: String) {
+        val today = LocalDate.now().toString(); val f = java.io.File(c.context.filesDir, "ttsync-${(c.api.school ?: "x").filter { it.isLetterOrDigit() }}-${studentId.filter { it.isLetterOrDigit() }}")
+        if (runCatching { f.readText() }.getOrNull() == today) return
+        val ws = Dates.weekStart(LocalDate.now()); var ok = 0
+        for (o in -3L..1L) runCatching { remember(studentId, c.repos.schedule(ws.plusWeeks(o), studentId)); ok++ }
+        if (ok > 0) runCatching { f.writeText(today) }
+    }
+
+    data class AbsRow(val date: LocalDate, val hours: Int, val info: String?)
+    data class AbsResult(val rows: List<AbsRow>, val unknownDays: Int, val checked: Int)
+
+    /** Fehlstunden je Fach: Fehlzeiten des Home.InfoPoint werden über den (lokal gespeicherten) Stundenplan dem Fach zugeordnet; entfallene Stunden zählen nicht. Dazu der Unterrichtsinhalt/die Hausaufgabe jenes Tages. */
+    suspend fun absences(sub: Subject, studentId: String, hip: HipData, all: List<String>, hipMap: Map<String, String>, alias: Map<String, String>): AbsResult = coroutineScope {
         val ent = HipParser.absSummary(hip.of(HipClass.Abs)).entries
-        val hit = ent.mapNotNull { e -> Dates.date(Regex("(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}|\\d{2})").find(e.day)?.let { m -> "%s-%02d-%02d".format(m.groupValues[3].let { y -> if (y.length == 2) "20$y" else y }, m.groupValues[2].toInt(), m.groupValues[1].toInt()) }) ?.let { it to e } }
-            .filter { it.first >= from }.sortedByDescending { it.first }.take(40)
-        val gate = Semaphore(3)
-        hit.map { (d, e) -> async {
-            val ws = Dates.weekStart(d); val key = "${c.api.school}:$studentId:$ws"
-            val sch = weeks[key] ?: gate.withPermit { runCatching { c.repos.schedule(ws, studentId) }.getOrNull() }?.also { weeks[key] = it } ?: return@async null
-            val day = sch.days.firstOrNull { it.date == d } ?: return@async null
-            // Einträge wie „Ganzer Tag (Entschuldigt), 3. bis 4. Std. (Unentschuldigt)“ je Segment auswerten
+        val hit = ent.mapNotNull { e -> Dates.date(Regex("(\\d{1,2})\\.(\\d{1,2})\\.(\\d{4}|\\d{2})").find(e.day)?.let { m -> "%s-%02d-%02d".format(m.groupValues[3].let { y -> if (y.length == 2) "20$y" else y }, m.groupValues[2].toInt(), m.groupValues[1].toInt()) })?.let { it to e } }
+            .groupBy({ it.first }, { it.second }).toList().sortedByDescending { it.first }
+        var store = ttLoad(studentId); val gate = Semaphore(3)
+        // fehlende Wochen noch beim Portal versuchen (klappt nur für die letzten Wochen) und lokal sichern
+        hit.map { it.first }.filter { store[it.toString()] == null }.map { Dates.weekStart(it) }.distinct().take(8).map { ws -> async { gate.withPermit { runCatching { remember(studentId, c.repos.schedule(ws, studentId)) } } } }.awaitAll()
+        store = ttLoad(studentId)
+        var unknown = 0
+        val rows = hit.mapNotNull { (d, es) ->
+            val day = store[d.toString()]; if (day == null) { unknown++; return@mapNotNull null }
             val hours = mutableSetOf<Int>()
-            e.text.split(Regex("\\s*,\\s*")).forEach { seg ->
+            es.forEach { e -> e.text.split(Regex("\\s*,\\s*")).forEach { seg ->
                 val r = Regex("(\\d{1,2})\\.?\\s*(?:bis|-|–)\\s*(\\d{1,2})").find(seg); val one = Regex("(\\d{1,2})\\.?\\s*(?:Std|Stunde)", RegexOption.IGNORE_CASE).find(seg)
-                when { Regex("ganz", RegexOption.IGNORE_CASE).containsMatchIn(seg) -> hours += day.slots.map { it.index + 1 }; r != null -> hours += (r.groupValues[1].toInt()..r.groupValues[2].toInt()); one != null -> hours += one.groupValues[1].toInt() }
-            }
-            val n = hours.count { h -> (day.slots.firstOrNull { it.index == h - 1 } ?: day.slots.getOrNull(h - 1))?.entries.orEmpty().any { en -> SubjectMatch.resolve(en.subject, all, hipMap, alias) == sub.name } }
-            if (n > 0) d to n else null
-        } }.awaitAll().filterNotNull().sortedByDescending { it.first }
+                when { Regex("ganz", RegexOption.IGNORE_CASE).containsMatchIn(seg) -> hours += day.keys.mapNotNull { it.toIntOrNull() }; r != null -> hours += (r.groupValues[1].toInt()..r.groupValues[2].toInt()); one != null -> hours += one.groupValues[1].toInt() }
+            } }
+            val n = hours.count { h -> day[h.toString()].orEmpty().any { s -> !s.startsWith("!") && SubjectMatch.resolve(s, all, hipMap, alias) == sub.name } }
+            if (n == 0) return@mapNotNull null
+            // Was war an dem Tag? Unterrichtsinhalt/Hausaufgaben des Fachs vom selben Datum
+            val dd = Regex("\\d{1,2}\\.\\d{1,2}\\.(\\d{4}|\\d{2})")
+            val info = (hip.of(HipClass.Les) + hip.of(HipClass.Hw)).flatMap { t -> t.rows.filter { r -> r.any { cell -> dd.find(cell)?.let { m -> Dates.date(m.value.split('.').let { p -> "%s-%02d-%02d".format(p[2].let { y -> if (y.length == 2) "20$y" else y }, p[1].toInt(), p[0].toInt()) }) == d } == true } && (r.any { SubjectMatch.mentions(it, sub.name, all, hipMap, alias) } || SubjectMatch.mentions(t.title, sub.name, all, hipMap, alias)) }.map { r -> r.filter { it.isNotBlank() && dd.matchEntire(it.trim()) == null }.joinToString(" · ") } }.filter { it.isNotBlank() }.distinct().joinToString("\n").ifBlank { null }
+            AbsRow(d, n, info)
+        }
+        AbsResult(rows, unknown, hit.size)
     }
 }

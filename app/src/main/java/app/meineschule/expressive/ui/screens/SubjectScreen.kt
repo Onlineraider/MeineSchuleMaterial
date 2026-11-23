@@ -47,7 +47,7 @@ fun SubjectScreen(name: String, studentId: String?, nav: NavHostController) {
     val chatsL = rememberLoader(gen, subject?.name, ov, hm.size) { subject?.let { app.subjects.chatsFor(it, names, hm, ov) } }
     val match = (chatsL.state as? UiState.Ready)?.data
     val docsL = rememberLoader(gen, match?.chats?.map { it.id }) { match?.chats?.let { app.subjects.documents(it) } ?: emptyList() }
-    val absL = rememberLoader(gen, sid, subject?.name, hm.size, hip != null) { if (subject != null && hip != null) app.subjects.absences(subject, sid, hip, names, hm, ov.alias) else emptyList() }
+    val absL = rememberLoader(gen, sid, subject?.name, hm.size, hip != null) { if (subject != null && hip != null) app.subjects.absences(subject, sid, hip, names, hm, ov.alias) else Subjects.AbsResult(emptyList(), 0, 0) }
 
     PageScaffold(title = subject?.name ?: name, subtitle = school?.students?.firstOrNull { it.id == sid }?.let { it.name }, onBack = { nav.popBackStack() },
         actions = { if (subject != null) IconButton({ adjust = true }) { Icon(Icons.Rounded.Tune, "Fach anpassen") } }) { pad ->
@@ -98,11 +98,12 @@ fun SubjectScreen(name: String, studentId: String?, nav: NavHostController) {
                 }
 
                 // Fehlstunden
-                val abs = (absL.state as? UiState.Ready)?.data.orEmpty()
+                val absRes = (absL.state as? UiState.Ready)?.data; val abs = absRes?.rows.orEmpty()
                 if (hip != null) {
-                    item { SectionTitle("Fehlstunden", trailing = { if (absL.state is UiState.Loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else if (abs.isNotEmpty()) Text("${abs.sumOf { it.second }} gesamt", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }) }
-                    if (abs.isEmpty() && absL.state !is UiState.Loading) item { Text(((absL.state as? UiState.Ready)?.data?.size ?: 0).let { "Keine Fehlstunden in diesem Fach gefunden (letzte 4 Monate; Zuordnung über den Stundenplan der jeweiligen Woche)." }, Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
-                    itemsIndexed(abs) { i, (d, n) -> GroupedItem(i, abs.size, Dates.dayLong(d), supporting = "$n ${if (n == 1) "Stunde" else "Stunden"} gefehlt", leading = { TileIcon(Icons.Rounded.EventBusy) }) }
+                    item { SectionTitle("Fehlstunden", trailing = { if (absL.state is UiState.Loading) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp) else if (abs.isNotEmpty()) Text("${abs.sumOf { it.hours }} gesamt", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary) }) }
+                    if (abs.isEmpty() && absRes != null) item { Text(if (absRes.checked == 0) "Keine Fehlzeiten eingetragen." else "Keine Fehlstunden in diesem Fach gefunden.", Modifier.padding(horizontal = 24.dp), style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                    itemsIndexed(abs) { i, r -> GroupedItem(i, abs.size, Dates.dayLong(r.date), supporting = "${r.hours} ${if (r.hours == 1) "Stunde" else "Stunden"} gefehlt" + (r.info?.let { "\n$it" } ?: ""), leading = { TileIcon(Icons.Rounded.EventBusy) }) }
+                    if (absRes != null && absRes.unknownDays > 0) item { InfoBanner("Für ${absRes.unknownDays} Fehltag(e) liegt kein gespeicherter Stundenplan vor (das Portal liefert nur die letzten Wochen). Die App sichert ihn ab jetzt automatisch.", Icons.Rounded.Info, modifier = Modifier.padding(16.dp)) }
                 }
 
                 // Dokumente aus Chats
