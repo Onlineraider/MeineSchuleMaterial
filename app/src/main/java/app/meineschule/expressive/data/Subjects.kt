@@ -113,7 +113,7 @@ class Subjects(private val c: AppContainer) {
     // ---- Lokaler Stundenplan-Speicher: das Portal liefert nur etwa die letzten 3 Wochen, Fehlzeiten reichen weiter zurück ----
     private val ttLock = Any()
     private fun ttFile(studentId: String) = java.io.File(c.context.filesDir, "timetable-${(c.api.school ?: "x").filter { it.isLetterOrDigit() }}-${studentId.filter { it.isLetterOrDigit() }}.json")
-    private val ttSer = kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.builtins.serializer<String>(), kotlinx.serialization.builtins.MapSerializer(kotlinx.serialization.builtins.serializer<String>(), kotlinx.serialization.builtins.ListSerializer(kotlinx.serialization.builtins.serializer<String>())))
+    private val ttSer = kotlinx.serialization.serializer<Map<String, Map<String, List<String>>>>()
     private fun ttLoad(studentId: String): MutableMap<String, Map<String, List<String>>> = synchronized(ttLock) { runCatching { kotlinx.serialization.json.Json.decodeFromString(ttSer, ttFile(studentId).readText()).toMutableMap() }.getOrDefault(mutableMapOf()) }
 
     /** Gelesene Plantage lokal merken (Fach je Stunde, mit „!“ vor entfallenen Stunden). */
