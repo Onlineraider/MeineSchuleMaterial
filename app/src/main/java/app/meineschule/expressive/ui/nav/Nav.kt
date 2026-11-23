@@ -81,7 +81,9 @@ fun MainShell() {
             popExitTransition = { fadeOut(fastEffects) + slideOutHorizontally(slideSpec) { it / 12 } },
         ) {
             composable(Dest.Home.route) { HomeScreen(nav) }
-            composable(Dest.Plan.route) { ScheduleScreen() }
+            composable(Dest.Plan.route) { ScheduleScreen(onSubject = { n, sid -> nav.navigate("subject?n=${Uri.encode(n)}" + (sid?.let { "&s=${Uri.encode(it)}" } ?: "")) }) }
+            composable("subject?n={n}&s={s}", listOf("n", "s").map { k -> navArgument(k) { type = NavType.StringType; nullable = true; defaultValue = null } }) { e -> SubjectScreen(e.arguments?.getString("n").orEmpty(), e.arguments?.getString("s"), nav) }
+            composable("subjects") { SubjectsScreen(nav) }
             composable(Dest.Chats.route) { ChatsScreen(nav) }
             composable("chat/{id}", listOf(navArgument("id") { type = NavType.StringType })) { ChatScreen(it.arguments!!.getString("id")!!, nav) }
             composable("newchat?edit={edit}&prefill={prefill}", listOf(

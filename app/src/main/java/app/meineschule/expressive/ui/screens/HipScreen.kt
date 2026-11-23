@@ -78,7 +78,7 @@ fun HipScreen(onBack: () -> Unit) {
 }
 
 /** Eine Zeile des Home.InfoPoint, geordnet: Note/Hauptinhalt oben, darunter Beschreibung, Datum zuletzt. */
-private data class HipRow(val title: String, val body: String?, val date: String?, val category: String, val grade: String?, val fields: List<Pair<String, String>>) {
+internal data class HipRow(val title: String, val body: String?, val date: String?, val category: String, val grade: String?, val fields: List<Pair<String, String>>) {
     companion object {
         private val DATE = Regex("^\\d{1,2}\\.\\d{1,2}\\.(\\d{2}|\\d{4})$")
         fun of(cls: HipClass, t: HipTable, r: List<String>): HipRow {
@@ -99,7 +99,7 @@ private data class HipRow(val title: String, val body: String?, val date: String
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Composable private fun HipDetailSheet(r: HipRow, onDismiss: () -> Unit) {
+@Composable internal fun HipDetailSheet(r: HipRow, onDismiss: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     ModalBottomSheet(onDismiss, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
         Column(Modifier.verticalScroll(rememberScrollState()).padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -168,4 +168,4 @@ private fun androidx.compose.foundation.lazy.LazyListScope.absenceItems(a: AbsSu
     }
 }
 
-@Composable private fun GradeBadge(value: String) { val cs = MaterialTheme.colorScheme; Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(cs.primaryContainer), contentAlignment = Alignment.Center) { Text(value, style = MaterialTheme.typography.titleLarge, color = cs.onPrimaryContainer) } }
+@Composable internal fun GradeBadge(value: String) { val cs = MaterialTheme.colorScheme; Box(Modifier.size(48.dp).clip(RoundedCornerShape(16.dp)).background(cs.primaryContainer), contentAlignment = Alignment.Center) { Text(value, style = MaterialTheme.typography.titleLarge, color = cs.onPrimaryContainer) } }

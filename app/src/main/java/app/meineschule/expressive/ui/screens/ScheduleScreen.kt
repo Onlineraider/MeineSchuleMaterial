@@ -33,7 +33,7 @@ import java.time.LocalDate
 private enum class PlanView { Day, Week }
 
 @Composable
-fun ScheduleScreen() {
+fun ScheduleScreen(onSubject: (String, String?) -> Unit = { _, _ -> }) {
     val app = LocalApp.current; val cs = MaterialTheme.colorScheme
     val school by app.session.school.collectAsState(); val gen by app.session.generation.collectAsState()
     val today = remember { LocalDate.now() }
@@ -105,11 +105,11 @@ fun ScheduleScreen() {
             }
         }
     }
-    ScheduleDialogs(detailOf, app.prefs.effectiveTimes()) { detailOf = null }
+    ScheduleDialogs(detailOf, app.prefs.effectiveTimes(), { n -> detailOf = null; onSubject(n, target?.takeIf { it.first == "S" }?.second ?: students.firstOrNull()?.id) }) { detailOf = null }
 }
 
-@Composable private fun ScheduleDialogs(detail: Triple<ScheduleDay, Slot, LessonEntry>?, times: List<TimeRange>, onCloseDetail: () -> Unit) {
-    detail?.let { DetailDialog(it, times, onCloseDetail) }
+@Composable private fun ScheduleDialogs(detail: Triple<ScheduleDay, Slot, LessonEntry>?, times: List<TimeRange>, onSubject: (String) -> Unit, onCloseDetail: () -> Unit) {
+    detail?.let { DetailDialog(it, times, onSubject, onCloseDetail) }
 }
 
 @Composable private fun WeekDropdown(current: LocalDate, today: LocalDate, modifier: Modifier, onPick: (LocalDate) -> Unit) {
@@ -189,9 +189,9 @@ fun ScheduleScreen() {
     }
 }
 
-@Composable private fun DetailDialog(t: Triple<ScheduleDay, Slot, LessonEntry>, times: List<TimeRange>, onDismiss: () -> Unit) {
+@Composable private fun DetailDialog(t: Triple<ScheduleDay, Slot, LessonEntry>, times: List<TimeRange>, onSubject: (String) -> Unit, onDismiss: () -> Unit) {
     val (d, slot, e) = t; val time = slot.time ?: times.getOrNull(slot.index)
-    AlertDialog(onDismissRequest = onDismiss, confirmButton = { TextButton(onDismiss) { Text("Schließen") } }, title = { Text(e.subject) }, text = {
+    AlertDialog(onDismissRequest = onDismiss, dismissButton = { TextButton(onDismiss) { Text("Schließen") } }, confirmButton = { FilledTonalButton({ onSubject(e.subject) }, shapes = ButtonDefaults.shapes()) { Icon(Icons.Rounded.MenuBook, null, Modifier.size(18.dp)); Spacer(Modifier.width(8.dp)); Text("Zum Fach") } }, title = { Text(e.subject) }, text = {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(if (e.cancelled) "Entfällt" else if (e.changed) "Änderung / Vertretung" else "Planmäßig", style = MaterialTheme.typography.labelLarge)
             Text("${Dates.dayLong(d.date)} · ${slot.index + 1}. Position im Plan")

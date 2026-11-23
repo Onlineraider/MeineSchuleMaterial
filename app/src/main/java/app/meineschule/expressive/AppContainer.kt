@@ -37,6 +37,26 @@ class Prefs(ctx: Context) {
     /** Zwischengespeicherte Verfügbarkeit von Diensten je Schule („Mehr“ blendet ungenutzte aus). null = unbekannt → anzeigen. */
     fun avail(school: String, mod: String): Boolean? = if (sp.contains("avail.$school.$mod")) sp.getBoolean("avail.$school.$mod", true) else null
     fun setAvail(school: String, mod: String, v: Boolean) { sp.edit().putBoolean("avail.$school.$mod", v).apply() }
+    /** Manuelle Fach-Anpassungen (Kürzel-Zuordnung, Chat-Zuordnung), je Gerät. */
+    val subjectOv = MutableStateFlow(loadOv())
+    private fun loadOv(): SubjectOverrides {
+        val alias = mutableMapOf<String, String>(); val inc = mutableMapOf<String, MutableSet<String>>(); val exc = mutableMapOf<String, MutableSet<String>>()
+        (sp.getString("subjectOv", "") ?: "").lines().forEach { l -> val p = l.split('\t'); if (p.size == 3) when (p[0]) { "A" -> alias[p[1]] = p[2]; "+" -> inc.getOrPut(p[1]) { mutableSetOf() } += p[2]; "-" -> exc.getOrPut(p[1]) { mutableSetOf() } += p[2] } }
+        return SubjectOverrides(alias, inc, exc)
+    }
+    private fun saveOv(o: SubjectOverrides) {
+        subjectOv.value = o
+        val l = o.alias.map { "A\t${it.key}\t${it.value}" } + o.inc.flatMap { (k, v) -> v.map { "+\t$k\t$it" } } + o.exc.flatMap { (k, v) -> v.map { "-\t$k\t$it" } }
+        sp.edit().putString("subjectOv", l.joinToString("\n")).apply()
+    }
+    /** Kürzel einem Fach zuordnen (null = Zuordnung entfernen). */
+    fun setAlias(abbr: String, subject: String?) { val k = SubjectMatch.key(SubjectMatch.base(abbr)); if (k.isEmpty()) return; val o = subjectOv.value; saveOv(o.copy(alias = if (subject == null) o.alias - k else o.alias + (k to subject))) }
+    /** Chat-Zuordnung: 1 = erzwingen, -1 = ausschließen, 0 = automatisch. */
+    fun setChat(subject: String, chatId: String, mode: Int) {
+        val o = subjectOv.value
+        fun upd(m: Map<String, Set<String>>, on: Boolean) = m.toMutableMap().also { it[subject] = (m[subject].orEmpty() - chatId).let { s -> if (on) s + chatId else s } }
+        saveOv(o.copy(inc = upd(o.inc, mode == 1), exc = upd(o.exc, mode == -1)))
+    }
     val avatars = MutableStateFlow(sp.getBoolean("avatars", true))
     fun setShareBase(v: String) { shareBase.value = v; sp.edit().putString("shareBase", v).apply() }
     fun setAvatars(v: Boolean) { avatars.value = v; sp.edit().putBoolean("avatars", v).apply() }
@@ -76,6 +96,7 @@ class AppContainer(val context: Context) {
     val portal = PortalClient(api, plain, origin)                // Cookie-Portal: bewusst OHNE Bearer-Interceptor
     val repos = Repos(api, portal)
     val contacts = Contacts(repos)
+    val subjects = Subjects(this)
     val hub = Hub(origin, auth, scope)
     val session = Session(this)
     @Volatile var inForeground = false
