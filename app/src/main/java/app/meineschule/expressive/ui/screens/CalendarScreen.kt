@@ -176,12 +176,24 @@ private class SelAnim(val bg: androidx.compose.ui.graphics.Color, val fg: androi
     val app = LocalApp.current; val scope = rememberCoroutineScope(); val cs = MaterialTheme.colorScheme
     val uiLang by app.prefs.language.collectAsState(); val lang = app.prefs.translation(langs, uiLang); var busy by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val detail = rememberLoader(e.id, lang) { app.repos.calendar.detail(e.id, lang) }
+    val catchUp = rememberLoader(e.id) { runCatching { app.subjects.forEvent(e.title) }.getOrNull() }
     ModalBottomSheet(onDismiss, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val d = (detail.state as? UiState.Ready)?.data ?: e
             Text(d.title, style = MaterialTheme.typography.headlineMedium)
             Text(listOfNotNull(Dates.parse(d.start)?.let { if (d.allDay) Dates.dayLong(it.toLocalDate()) else "${Dates.dayLong(it.toLocalDate())} · ${Dates.time(it)}" }, d.location, d.category).joinToString(" · "), color = cs.onSurfaceVariant)
             if (detail.state is UiState.Loading) SkeletonBox(Modifier.fillMaxWidth().height(60.dp)) else d.text?.let { Text(it, style = MaterialTheme.typography.bodyLarge) }
+            (catchUp.state as? UiState.Ready)?.data?.let { cu ->
+                val miss = cu.missed.rows; val hours = miss.sumOf { it.hours }; val test = app.subjects.isTest(e.title)
+                if (hours > 0 || test) Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(20.dp)).background(if (hours > 0) cs.tertiaryContainer else cs.secondaryContainer).padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val fg = if (hours > 0) cs.onTertiaryContainer else cs.onSecondaryContainer
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(if (hours > 0) Icons.Rounded.Info else Icons.Rounded.CheckCircle, null, tint = fg); Text(if (hours > 0) "Nachholen in ${cu.subject.name}" else "Nichts nachzuholen in ${cu.subject.name}", style = MaterialTheme.typography.titleMedium, color = fg) }
+                    if (hours > 0) {
+                        Text("Du hast hier $hours ${if (hours == 1) "Stunde" else "Stunden"} verpasst:", color = fg, style = MaterialTheme.typography.bodyMedium)
+                        miss.take(6).forEach { r -> Text("• ${Dates.dayShort(r.date)} (${r.hours} Std.)" + (r.info?.let { ": " + it.replace("\n", "; ") } ?: ""), color = fg, style = MaterialTheme.typography.bodyMedium) }
+                    } else Text("Du warst in allen Stunden dieses Fachs da (soweit Plan und Fehlzeiten bekannt sind).", color = fg, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
             err?.let { Text(it, color = cs.error) }
             if (d.confirmReceive) {
                 fun answer(a: Int) { busy = true; scope.launch { try { app.repos.calendar.confirm(e.id, a); onConfirmed() } catch (x: Throwable) { err = x.asApi().userText } finally { busy = false } } }

@@ -28,6 +28,7 @@ import app.meineschule.expressive.LocalApp
 import app.meineschule.expressive.Prefs
 import app.meineschule.expressive.ui.components.*
 import app.meineschule.expressive.work.Notifier
+import app.meineschule.expressive.work.Reminders
 import app.meineschule.expressive.net.DebugLog
 import app.meineschule.expressive.data.LessonTimes
 import kotlinx.coroutines.launch
@@ -65,6 +66,17 @@ fun SettingsScreen(onBack: () -> Unit, nav: androidx.navigation.NavHostControlle
                 item { SectionTitle("Debug") }
                 item { SwitchRow("Debug-Modus aktiv", "Server-Antworten werden nur im Arbeitsspeicher protokolliert (ohne Tokens/Passwörter). Zum Beenden 7× auf „Einstellungen“ tippen.", true, true, Icons.Rounded.BugReport) { app.prefs.setDebug(it) } }
                 item { Box(Modifier.padding(horizontal = 16.dp)) { FilledTonalButton({ nav.navigate("debuglog") }, Modifier.fillMaxWidth()) { Icon(Icons.Rounded.DataObject, null); Spacer(Modifier.width(8.dp)); Text("Antwort-Log ansehen (${DebugLog.entries.collectAsState().value.size})") } } }
+            }
+            item { SectionTitle("Erinnerungen") }
+            item {
+                val on by app.prefs.testReminders.collectAsState(); val lead by app.prefs.testLead.collectAsState()
+                val perm = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { ok -> app.prefs.setTestReminders(ok); Reminders.schedule(ctx, ok) }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SwitchRow("Erinnerung an Tests", "Meldet anstehende Tests und was du wegen Fehlzeiten im Fach nachholen musst. Lokal, etwa alle 4 Stunden geprüft; setzt „Angemeldet bleiben“ voraus.", on, true, Icons.Rounded.Notifications) { v ->
+                        if (v && Build.VERSION.SDK_INT >= 33) perm.launch(Manifest.permission.POST_NOTIFICATIONS) else { app.prefs.setTestReminders(v); Reminders.schedule(ctx, v) }
+                    }
+                    if (on) Row(Modifier.padding(horizontal = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { listOf(1 to "1 Tag", 2 to "2 Tage", 3 to "3 Tage", 7 to "1 Woche").forEach { (d, l) -> FilterChip(lead == d, { app.prefs.setTestLead(d) }, { Text(l) }) } }
+                }
             }
             item { SectionTitle("Stundenzeiten") }
             item {

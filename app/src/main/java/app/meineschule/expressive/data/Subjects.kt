@@ -164,4 +164,19 @@ class Subjects(private val c: AppContainer) {
         }
         AbsResult(rows, unknown, hit.size, detail)
     }
+
+    private val testWords = Regex("test|klassenarbeit|schulaufgabe|\\bex\\b|\\bka\\b|pr\\u00fcfung|arbeit|lernkontrolle|klausur|leistungsnachweis|stegreif", RegexOption.IGNORE_CASE)
+    fun isTest(title: String) = testWords.containsMatchIn(title)
+
+    data class EventSubject(val subject: Subject, val missed: AbsResult)
+
+    /** Fach zu einem Terminnamen (z. B. „Phy Test 10c“ → Physik) samt Nachholbedarf (Fehlstunden in diesem Fach). */
+    suspend fun forEvent(title: String, studentId: String? = null): EventSubject? {
+        val sid = studentId ?: (c.session.school.value ?: runCatching { c.repos.school.index() }.getOrNull())?.students?.firstOrNull()?.id ?: return null
+        val subs = list(sid); val names = subs.map { it.name }
+        val hip = runCatching { c.repos.hip.student(sid) }.getOrNull() ?: return null
+        val hm = SubjectMatch.hipMap(hip); val alias = c.prefs.subjectOv.value.alias
+        val sub = subs.firstOrNull { SubjectMatch.mentions(title, it.name, names, hm, alias) } ?: return null
+        return EventSubject(sub, absences(sub, sid, hip, names, hm, alias))
+    }
 }

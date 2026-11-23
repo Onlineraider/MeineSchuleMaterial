@@ -80,6 +80,13 @@ class Prefs(ctx: Context) {
     /** Zufällige, pro Installation feste App-ID im Format der Web-App (`MSDAPP:<uuid>`); kein Geheimnis. */
     val appId: String = sp.getString("appId", null) ?: "MSDAPP:${java.util.UUID.randomUUID()}".also { sp.edit().putString("appId", it).apply() }
     fun clear() { val id = appId; sp.edit().clear().putString("appId", id).apply(); school.value = null }
+    /** Erinnerungen an anstehende Tests inkl. Nachholbedarf (lokal, WorkManager). */
+    val testReminders = MutableStateFlow(sp.getBoolean("testReminders", false))
+    fun setTestReminders(v: Boolean) { testReminders.value = v; sp.edit().putBoolean("testReminders", v).apply() }
+    val testLead = MutableStateFlow(sp.getInt("testLead", 2))
+    fun setTestLead(d: Int) { testLead.value = d; sp.edit().putInt("testLead", d).apply() }
+    fun wasReminded(key: String) = (sp.getStringSet("reminded", emptySet()) ?: emptySet()).contains(key)
+    fun markReminded(key: String) { val s = (sp.getStringSet("reminded", emptySet()) ?: emptySet()).toMutableSet(); s += key; sp.edit().putStringSet("reminded", s.toList().takeLast(200).toSet()).apply() }
     var lastNotifiedUnread: Int get() = sp.getInt("lastUnread", 0); set(v) { sp.edit().putInt("lastUnread", v).apply() }
 }
 
