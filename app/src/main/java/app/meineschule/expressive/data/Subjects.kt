@@ -61,15 +61,22 @@ object SubjectMatch {
      * Zu welchem Fach gehört ein Kalendertermin? Der Ersteller ist meist die Fachlehrkraft: Stimmt er mit genau einer Lehrkraft eines Fachs überein, ist das (bei mehreren Fächern der Lehrkraft zusätzlich per Titel) das Fach.
      * Ist der Ersteller keine Lehrkraft der eigenen Fächer, wird nur noch auf eindeutige Fachnamen/Kürzel geprüft (kein „ungefähres“ Raten) – so landen fremde Tests (z. B. anderer Englischkurs) nicht fälschlich im Fach.
      */
-    fun eventSubject(e: CalendarEvent, subs: List<Subject>, hip: Map<String, String>, alias: Map<String, String>): Subject? {
+    fun eventSubjects(e: CalendarEvent, subs: List<Subject>, hip: Map<String, String>, alias: Map<String, String>, lessonOn: (Subject, java.time.LocalDate) -> Boolean? = { _, _ -> null }): List<Subject> {
         val names = subs.map { it.name }
         val cid = e.creatorId?.lowercase()
         val byTeacher = if (cid == null) emptyList() else subs.filter { s -> s.teachers.any { p -> p.userId?.lowercase() == cid || p.id?.lowercase() == cid } }
-        if (byTeacher.size == 1) return byTeacher[0]
-        if (byTeacher.size > 1) return byTeacher.singleOrNull { mentions(e.title, it.name, names, hip, alias) } ?: byTeacher.singleOrNull { mentions(e.title, it.name, names, hip, alias, false) }
-        val hits = subs.filter { mentions(e.title, it.name, names, hip, alias, false) }
-        return hits.singleOrNull()
+        if (byTeacher.size == 1) return byTeacher
+        if (byTeacher.size > 1) {
+            // Lehrkraft unterrichtet mehrere meiner Fächer: erst Titel (Name/Kürzel), dann „hat an dem Tag/Wochentag Unterricht“
+            byTeacher.filter { mentions(e.title, it.name, names, hip, alias, false) }.let { if (it.size == 1) return it }
+            byTeacher.filter { mentions(e.title, it.name, names, hip, alias) }.let { if (it.size == 1) return it }
+            val d = Dates.date(e.start)
+            if (d != null) byTeacher.filter { lessonOn(it, d) == true }.let { if (it.isNotEmpty()) return it }
+            return byTeacher
+        }
+        return subs.filter { mentions(e.title, it.name, names, hip, alias, false) }
     }
+    fun eventSubject(e: CalendarEvent, subs: List<Subject>, hip: Map<String, String>, alias: Map<String, String>, lessonOn: (Subject, java.time.LocalDate) -> Boolean? = { _, _ -> null }): Subject? = eventSubjects(e, subs, hip, alias, lessonOn).singleOrNull()
 }
 
 data class ChatMatch(val chats: List<Chat>, val all: List<Chat>, val auto: Set<String>)
@@ -131,6 +138,15 @@ class Subjects(private val c: AppContainer) {
     private fun ttLoad(studentId: String): MutableMap<String, Map<String, List<String>>> = synchronized(ttLock) { runCatching { kotlinx.serialization.json.Json.decodeFromString(ttSer, ttFile(studentId).readText()).toMutableMap() }.getOrDefault(mutableMapOf()) }
 
     /** Gelesene Plantage lokal merken (Fach je Stunde, mit „!“ vor entfallenen Stunden). */
+    /** Hat das Fach an diesem Tag (oder – bei unbekanntem Tag – an diesem Wochentag) laut lokal gespeichertem Plan Unterricht? null = keine Plandaten. */
+    fun hasLesson(studentId: String, date: LocalDate, sub: Subject, all: List<String>, hip: Map<String, String>, alias: Map<String, String>): Boolean? {
+        val st = ttLoad(studentId); if (st.isEmpty()) return null
+        fun has(day: Map<String, List<String>>) = day.values.any { l -> l.any { s -> !s.startsWith("!") && SubjectMatch.resolve(s, all, hip, alias) == sub.name } }
+        st[date.toString()]?.let { return has(it) }
+        val same = st.filterKeys { k -> runCatching { LocalDate.parse(k).dayOfWeek == date.dayOfWeek }.getOrDefault(false) }.values
+        return if (same.isEmpty()) null else same.any { has(it) }
+    }
+
     fun remember(studentId: String, sch: Schedule) {
         if (sch.days.isEmpty()) return
         synchronized(ttLock) {
@@ -190,7 +206,7 @@ class Subjects(private val c: AppContainer) {
         val subs = list(sid); val names = subs.map { it.name }
         val hip = runCatching { c.repos.hip.student(sid) }.getOrNull() ?: return null
         val hm = SubjectMatch.hipMap(hip); val alias = c.prefs.subjectOv.value.alias
-        val sub = SubjectMatch.eventSubject(e, subs, hm, alias) ?: return null
+        val sub = SubjectMatch.eventSubject(e, subs, hm, alias) { sb, d -> hasLesson(sid, d, sb, names, hm, alias) } ?: return null
         return EventSubject(sub, absences(sub, sid, hip, names, hm, alias))
     }
 }
