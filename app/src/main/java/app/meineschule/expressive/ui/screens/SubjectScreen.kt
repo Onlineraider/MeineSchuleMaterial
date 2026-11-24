@@ -72,7 +72,7 @@ fun SubjectScreen(name: String, studentId: String?, nav: NavHostController) {
 
                 // Anstehende Termine (Tests …)
                 val today = LocalDate.now()
-                val events = (calL.state as? UiState.Ready)?.data.orEmpty().filter { e -> SubjectMatch.mentions(e.title, subject.name, names, hm, ov.alias) && (Dates.parse(e.end ?: e.start)?.toLocalDate() ?: today) >= today }.sortedBy { it.start.orEmpty() }.take(8)
+                val events = (calL.state as? UiState.Ready)?.data.orEmpty().filter { e -> SubjectMatch.eventSubject(e, subs.orEmpty(), hm, ov.alias)?.name == subject.name && (Dates.parse(e.end ?: e.start)?.toLocalDate() ?: today) >= today }.sortedBy { it.start.orEmpty() }.take(8)
                 if (events.isNotEmpty()) {
                     item { SectionTitle("Anstehende Termine") }
                     itemsIndexed(events) { i, e -> GroupedItem(i, events.size, e.title, supporting = Dates.parse(e.start)?.let { Dates.dayShort(it.toLocalDate()) + if (e.start?.contains('T') == true) " · " + Dates.time(it) else "" }, leading = { TileIcon(Icons.Rounded.Event) }, onClick = { nav.navigate("calendar") }) }

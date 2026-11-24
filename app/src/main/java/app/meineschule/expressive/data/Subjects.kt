@@ -42,19 +42,33 @@ object SubjectMatch {
         key(m.groupValues[1]) to m.groupValues[2].trim()
     }.toMap()
 
-    fun resolve(token: String, subjects: List<String>, hip: Map<String, String>, alias: Map<String, String>): String? {
+    fun resolve(token: String, subjects: List<String>, hip: Map<String, String>, alias: Map<String, String>, fuzzy: Boolean = true): String? {
         val k = key(token); if (k.isEmpty()) return null
         subjects.firstOrNull { key(it) == k }?.let { return it }
         val b = key(base(token))
         (alias[b] ?: alias[k])?.let { return it }
         hip[b]?.let { n -> subjects.firstOrNull { key(it) == key(n) }?.let { return it } }
-        return heuristic(token, subjects)
+        return if (fuzzy) heuristic(token, subjects) else null
     }
 
     /** Erwähnt der Text (Termin-/Chattitel) das Fach – Vollname oder Kürzel? */
-    fun mentions(text: String, subject: String, subjects: List<String>, hip: Map<String, String>, alias: Map<String, String>): Boolean {
+    fun mentions(text: String, subject: String, subjects: List<String>, hip: Map<String, String>, alias: Map<String, String>, fuzzy: Boolean = true): Boolean {
         if (text.contains(subject, ignoreCase = true)) return true
-        return Regex("[\\p{L}\\p{N}_]+").findAll(text).any { w -> w.value.length >= 2 && resolve(w.value, subjects, hip, alias) == subject }
+        return Regex("[\\p{L}\\p{N}_]+").findAll(text).any { w -> w.value.length >= 2 && resolve(w.value, subjects, hip, alias, fuzzy) == subject }
+    }
+
+    /**
+     * Zu welchem Fach gehört ein Kalendertermin? Der Ersteller ist meist die Fachlehrkraft: Stimmt er mit genau einer Lehrkraft eines Fachs überein, ist das (bei mehreren Fächern der Lehrkraft zusätzlich per Titel) das Fach.
+     * Ist der Ersteller keine Lehrkraft der eigenen Fächer, wird nur noch auf eindeutige Fachnamen/Kürzel geprüft (kein „ungefähres“ Raten) – so landen fremde Tests (z. B. anderer Englischkurs) nicht fälschlich im Fach.
+     */
+    fun eventSubject(e: CalendarEvent, subs: List<Subject>, hip: Map<String, String>, alias: Map<String, String>): Subject? {
+        val names = subs.map { it.name }
+        val cid = e.creatorId?.lowercase()
+        val byTeacher = if (cid == null) emptyList() else subs.filter { s -> s.teachers.any { p -> p.userId?.lowercase() == cid || p.id?.lowercase() == cid } }
+        if (byTeacher.size == 1) return byTeacher[0]
+        if (byTeacher.size > 1) return byTeacher.singleOrNull { mentions(e.title, it.name, names, hip, alias) } ?: byTeacher.singleOrNull { mentions(e.title, it.name, names, hip, alias, false) }
+        val hits = subs.filter { mentions(e.title, it.name, names, hip, alias, false) }
+        return hits.singleOrNull()
     }
 }
 
@@ -171,12 +185,12 @@ class Subjects(private val c: AppContainer) {
     data class EventSubject(val subject: Subject, val missed: AbsResult)
 
     /** Fach zu einem Terminnamen (z. B. „Phy Test 10c“ → Physik) samt Nachholbedarf (Fehlstunden in diesem Fach). */
-    suspend fun forEvent(title: String, studentId: String? = null): EventSubject? {
+    suspend fun forEvent(e: CalendarEvent, studentId: String? = null): EventSubject? {
         val sid = studentId ?: (c.session.school.value ?: runCatching { c.repos.school.index() }.getOrNull())?.students?.firstOrNull()?.id ?: return null
         val subs = list(sid); val names = subs.map { it.name }
         val hip = runCatching { c.repos.hip.student(sid) }.getOrNull() ?: return null
         val hm = SubjectMatch.hipMap(hip); val alias = c.prefs.subjectOv.value.alias
-        val sub = subs.firstOrNull { SubjectMatch.mentions(title, it.name, names, hm, alias) } ?: return null
+        val sub = SubjectMatch.eventSubject(e, subs, hm, alias) ?: return null
         return EventSubject(sub, absences(sub, sid, hip, names, hm, alias))
     }
 }

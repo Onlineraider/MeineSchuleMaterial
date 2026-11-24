@@ -55,7 +55,7 @@ class TestReminderWorker(ctx: Context, params: WorkerParameters) : CoroutineWork
             val students = c.repos.school.index().students
             for ((e, d) in events) {
                 val key = "${e.id}:$today"; if (c.prefs.wasReminded(key)) continue
-                val hit = students.firstNotNullOfOrNull { s -> c.subjects.forEvent(e.title, s.id)?.let { s to it } } ?: continue
+                val hit = students.firstNotNullOfOrNull { s -> c.subjects.forEvent(e, s.id)?.let { s to it } } ?: continue
                 val (st, es) = hit; val miss = es.missed.rows; val hours = miss.sumOf { it.hours }
                 val whenText = when (java.time.temporal.ChronoUnit.DAYS.between(today, d)) { 0L -> "Heute"; 1L -> "Morgen"; else -> Dates.dayShort(d) }
                 val body = buildString {

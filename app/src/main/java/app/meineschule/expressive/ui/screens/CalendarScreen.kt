@@ -176,7 +176,7 @@ private class SelAnim(val bg: androidx.compose.ui.graphics.Color, val fg: androi
     val app = LocalApp.current; val scope = rememberCoroutineScope(); val cs = MaterialTheme.colorScheme
     val uiLang by app.prefs.language.collectAsState(); val lang = app.prefs.translation(langs, uiLang); var busy by remember { mutableStateOf(false) }; var err by remember { mutableStateOf<String?>(null) }
     val detail = rememberLoader(e.id, lang) { app.repos.calendar.detail(e.id, lang) }
-    val catchUp = rememberLoader(e.id) { runCatching { app.subjects.forEvent(e.title) }.getOrNull() }
+    val catchUp = rememberLoader(e.id) { runCatching { app.subjects.forEvent(e) }.getOrNull() }
     ModalBottomSheet(onDismiss, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
         Column(Modifier.padding(horizontal = 24.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             val d = (detail.state as? UiState.Ready)?.data ?: e

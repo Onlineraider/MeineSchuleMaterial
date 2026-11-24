@@ -36,7 +36,7 @@ data class Message(
     val hasAttachment: Boolean get() = !attachmentId.isNullOrBlank()
     val attachmentIsImage: Boolean get() = attachmentName?.matches(Regex(".*\\.(jpe?g|png|gif|webp|heic|bmp)$", RegexOption.IGNORE_CASE)) == true
 }
-data class CalendarEvent(val id: String, val title: String, val start: String?, val end: String?, val created: String?, val text: String?, val location: String?, val category: String?, val confirmReceive: Boolean, val answer: Int?)
+data class CalendarEvent(val id: String, val title: String, val start: String?, val end: String?, val created: String?, val text: String?, val location: String?, val category: String?, val confirmReceive: Boolean, val answer: Int?, val creatorId: String? = null, val creator: String? = null)
 data class MediaItem(val id: String, val title: String, val creator: String?, val from: String?, val to: String?, val created: String?, val text: String?, val liked: Boolean, val likeCount: Int, val confirmReceive: Boolean, val confirmed: Boolean, val attachments: List<Attachment>)
 data class ProtocolItem(val id: String, val title: String, val date: String?)
 data class ProtocolDetail(val item: ProtocolItem, val agenda: String?, val text: String?, val attachments: List<Attachment>, val attendees: List<String>)
@@ -112,7 +112,7 @@ fun J.toMessage(meId: String? = null): Message {
     )
 }
 fun J.toCalendar() = CalendarEvent(str("id").orEmpty(), str("name", "title") ?: "Termin", str("from"), str("to"), str("created"), str("text"), str("location"), obj("category")?.str("name"),
-    bool("confirmReceive") == true, int("confirmAnswer"))
+    bool("confirmReceive") == true, int("confirmAnswer"), str("creatorUserId"), str("creatorUserDisplayName"))
 fun J.toMedia() = MediaItem(str("id").orEmpty(), str("name", "title") ?: "Beitrag", str("creatorUserDisplayName"), str("from"), str("to"), str("created"), str("content", "text"),
     bool("liked") == true, int("likeCount") ?: 0, bool("confirmReceive") == true, bool("isConfirmed") == true, arr("attachments").map { it.toAttachment() })
 fun J.toProtocol() = ProtocolItem(str("id").orEmpty(), str("title", "name", "subject") ?: "Protokoll", str("date", "created", "meetingDate", "modified"))
