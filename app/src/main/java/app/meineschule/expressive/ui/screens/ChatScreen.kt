@@ -146,11 +146,16 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
             out += Row.Msg(m.copy(own = own(m)), prev == null || prev.authorId != m.authorId || own(prev) != own(m), next == null || next.authorId != m.authorId || own(next) != own(m)) } }
         out.reversed()
     }
-    var flash by remember { mutableStateOf<String?>(null) }; var jumpTo by remember { mutableStateOf<String?>(null) }; var fullText by remember { mutableStateOf<String?>(null) }
+    var flash by remember { mutableStateOf<String?>(null) }; var jumpTo by remember { mutableStateOf<Message?>(null) }; var fullText by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(jumpTo, rows) {
-        val id = jumpTo ?: return@LaunchedEffect
-        val idx = rows.indexOfFirst { it is Row.Msg && it.m.id == id }
-        if (idx >= 0) { jumpTo = null; listState.animateScrollToItem(idx); flash = id; kotlinx.coroutines.delay(1600); flash = null }
+        val src = jumpTo ?: return@LaunchedEffect
+        var idx = src.replyId?.let { rid -> rows.indexOfFirst { it is Row.Msg && it.m.id.equals(rid, true) } } ?: -1
+        if (idx < 0) { // Fallback: Zitat-Text mit älteren Nachrichten vergleichen (falls die ID im Zitat fehlt/anders ist)
+            val q = src.replyContent?.trimEnd('…', ' ')?.takeIf { it.isNotBlank() && it != "Anhang" }
+            val si = rows.indexOfFirst { it is Row.Msg && it.m.id == src.id }
+            if (q != null && si >= 0) idx = rows.withIndex().firstOrNull { (i, r) -> i > si && r is Row.Msg && r.m.content.isNotBlank() && (r.m.content == q || r.m.content.startsWith(q)) }?.index ?: -1
+        }
+        if (idx >= 0) { jumpTo = null; val id = (rows[idx] as Row.Msg).m.id; listState.animateScrollToItem(idx); flash = id; kotlinx.coroutines.delay(1800); flash = null }
         else if (ctl.reachedStart) { jumpTo = null; toast("Die ursprüngliche Nachricht ist nicht mehr vorhanden") } else ctl.loadOlder()
     }
     val nearEnd by remember { derivedStateOf { val l = listState.layoutInfo; (l.visibleItemsInfo.lastOrNull()?.index ?: 0) >= l.totalItemsCount - 4 } }
@@ -209,7 +214,7 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
                     itemsIndexed(rows, key = { _, r -> when (r) { is Row.Day -> "d:${r.label}"; is Row.Msg -> "m:${r.m.id}" } }) { _, r ->
                         when (r) {
                             is Row.Day -> Box(Modifier.fillMaxWidth().padding(vertical = 12.dp), contentAlignment = Alignment.Center) { Text(r.label, Modifier.clip(RoundedCornerShape(12.dp)).background(cs.surfaceContainerHigh).padding(horizontal = 12.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium, color = cs.onSurfaceVariant) }
-                            is Row.Msg -> Bubble(r, chatId, query, onLong = { actionFor = r.m }, onRetry = { ctl.retry(r.m, ::toast) }, onReact = { e -> ctl.react(r.m, e, ::toast) }, onMore = { emojiFor = r.m }, flash = flash == r.m.id, onQuote = { r.m.replyId?.let { query = ""; jumpTo = it } }, onFull = { fullText = r.m.content },
+                            is Row.Msg -> Bubble(r, chatId, query, onLong = { actionFor = r.m }, onRetry = { ctl.retry(r.m, ::toast) }, onReact = { e -> ctl.react(r.m, e, ::toast) }, onMore = { emojiFor = r.m }, flash = flash == r.m.id, onQuote = { query = ""; jumpTo = r.m }, onFull = { fullText = r.m.content },
                                 onAuthor = { r.m.authorId?.let { id -> nav.navigate("person?u=${Urls.seg(id)}&n=${Urls.seg(r.m.authorName.orEmpty())}") } })
                         }
                     }
@@ -302,7 +307,7 @@ private fun linkify(text: String, hl: String, linkColor: Color, hlColor: Color) 
         Column(Modifier.widthIn(max = 300.dp)) {
             Column(Modifier.clip(if (own) MsdShapes.BubbleOut else MsdShapes.BubbleIn).background(animateColorAsState(if (flash) cs.tertiaryContainer else if (own) cs.primaryContainer else cs.surfaceContainerHigh, label = "flash").value).combinedClickable(onClick = { if (m.failed) onRetry() }, onLongClick = onLong).padding(horizontal = 14.dp, vertical = 8.dp)) {
                 if (!own && r.first && !m.authorName.isNullOrBlank()) Text(m.authorName, style = MaterialTheme.typography.labelMedium, color = cs.primary)
-                if (m.replyId != null || m.replyContent != null) Text(m.replyContent.orEmpty().take(200).ifBlank { "Anhang" }, Modifier.padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)).background(cs.surface.copy(alpha = .5f)).clickable(enabled = m.replyId != null, onClick = onQuote).padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 2, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                if (m.replyId != null || m.replyContent != null) Text(m.replyContent.orEmpty().take(200).ifBlank { "Anhang" }, Modifier.padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)).background(cs.surface.copy(alpha = .5f)).clickable(onClick = onQuote).padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 2, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 if (m.hasAttachment) {
                     if (m.attachmentIsImage) AsyncImage(app.repos.messenger.downloadUrl(chatId, m.attachmentId!!), m.attachmentName, Modifier.padding(vertical = 4.dp).fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(14.dp)).clickable { open() }, contentScale = ContentScale.Crop)
                     else AssistChip(onClick = { open() }, label = { Text(m.attachmentName ?: "Anhang", maxLines = 1) }, leadingIcon = { Icon(Icons.Rounded.AttachFile, null, Modifier.size(18.dp)) })

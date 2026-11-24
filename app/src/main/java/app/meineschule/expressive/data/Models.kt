@@ -107,7 +107,7 @@ fun J.toMessage(meId: String? = null): Message {
     val (re, my) = reactions(meId)
     return Message(
         id = str("id", "messageId").orEmpty(), tempId = str("tempId"), content = str("content").orEmpty(), at = str("created"), authorId = str("creatorUserId"), authorName = str("creatorUserDisplayName"),
-        own = bool("isFromMe"), replyId = str("replyToMessageId") ?: obj("replyToMessage")?.str("id"), replyContent = obj("replyToMessage")?.let { it.str("content") ?: "Anhang" },
+        own = bool("isFromMe"), replyId = str("replyToMessageId") ?: obj("replyToMessage")?.str("id", "messageId", "chatMessageId"), replyContent = obj("replyToMessage")?.let { it.str("content") ?: "Anhang" },
         canDelete = bool("canDelete") == true, isRead = bool("isRead") != false, attachmentId = str("attachmentId"), attachmentName = str("attachmentName"), reactions = re, myVote = my,
     )
 }
