@@ -6,6 +6,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -146,7 +148,7 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
             out += Row.Msg(m.copy(own = own(m)), prev == null || prev.authorId != m.authorId || own(prev) != own(m), next == null || next.authorId != m.authorId || own(next) != own(m)) } }
         out.reversed()
     }
-    var flash by remember { mutableStateOf<String?>(null) }; var jumpTo by remember { mutableStateOf<Message?>(null) }; var fullText by remember { mutableStateOf<String?>(null) }
+    var flash by remember { mutableStateOf<String?>(null) }; var jumpTo by remember { mutableStateOf<Message?>(null) }; var fullText by remember { mutableStateOf<String?>(null) }; var told by remember { mutableStateOf(false) }
     LaunchedEffect(jumpTo, rows) {
         val src = jumpTo ?: return@LaunchedEffect
         var idx = src.replyId?.let { rid -> rows.indexOfFirst { it is Row.Msg && it.m.id.equals(rid, true) } } ?: -1
@@ -155,8 +157,8 @@ fun ChatScreen(chatId: String, nav: NavHostController) {
             val si = rows.indexOfFirst { it is Row.Msg && it.m.id == src.id }
             if (q != null && si >= 0) idx = rows.withIndex().firstOrNull { (i, r) -> i > si && r is Row.Msg && r.m.content.isNotBlank() && (r.m.content == q || r.m.content.startsWith(q)) }?.index ?: -1
         }
-        if (idx >= 0) { jumpTo = null; val id = (rows[idx] as Row.Msg).m.id; listState.animateScrollToItem(idx); flash = id; kotlinx.coroutines.delay(1800); flash = null }
-        else if (ctl.reachedStart) { jumpTo = null; toast("Die ursprüngliche Nachricht ist nicht mehr vorhanden") } else ctl.loadOlder()
+        if (idx >= 0) { jumpTo = null; val id = (rows[idx] as Row.Msg).m.id; told = false; listState.animateScrollToItem(idx, -(listState.layoutInfo.viewportSize.height / 3)); flash = id; kotlinx.coroutines.delay(2500); flash = null }
+        else if (ctl.reachedStart) { jumpTo = null; told = false; toast("Die ursprüngliche Nachricht ist nicht mehr vorhanden") } else { if (!told) { told = true; toast("Suche die ursprüngliche Nachricht …") }; ctl.loadOlder() }
     }
     val nearEnd by remember { derivedStateOf { val l = listState.layoutInfo; (l.visibleItemsInfo.lastOrNull()?.index ?: 0) >= l.totalItemsCount - 4 } }
     LaunchedEffect(nearEnd, ctl.version, query) { if (nearEnd || query.isNotBlank()) ctl.loadOlder() }
@@ -305,7 +307,8 @@ private fun linkify(text: String, hl: String, linkColor: Color, hlColor: Color) 
     Row(Modifier.fillMaxWidth().padding(top = if (r.first) 8.dp else 2.dp), horizontalArrangement = if (own) Arrangement.End else Arrangement.Start, verticalAlignment = Alignment.Bottom) {
         if (!own) Box(Modifier.width(40.dp).clickable(enabled = r.last && m.authorId != null, onClick = onAuthor)) { if (r.last) PersonAvatar(m.authorName ?: "?", m.authorId?.let { app.repos.school.avatarUrl(it) }, 32.dp, key = m.authorId ?: m.authorName ?: "") }
         Column(Modifier.widthIn(max = 300.dp)) {
-            Column(Modifier.clip(if (own) MsdShapes.BubbleOut else MsdShapes.BubbleIn).background(animateColorAsState(if (flash) cs.tertiaryContainer else if (own) cs.primaryContainer else cs.surfaceContainerHigh, label = "flash").value).combinedClickable(onClick = { if (m.failed) onRetry() }, onLongClick = onLong).padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Column(Modifier.clip(if (own) MsdShapes.BubbleOut else MsdShapes.BubbleIn).background(animateColorAsState(if (flash) cs.primary.copy(alpha = .55f).compositeOver(if (own) cs.primaryContainer else cs.surfaceContainerHigh) else if (own) cs.primaryContainer else cs.surfaceContainerHigh, label = "flash").value)
+                .then(if (flash) Modifier.border(2.dp, cs.primary, if (own) MsdShapes.BubbleOut else MsdShapes.BubbleIn) else Modifier).combinedClickable(onClick = { if (m.failed) onRetry() }, onLongClick = onLong).padding(horizontal = 14.dp, vertical = 8.dp)) {
                 if (!own && r.first && !m.authorName.isNullOrBlank()) Text(m.authorName, style = MaterialTheme.typography.labelMedium, color = cs.primary)
                 if (m.replyId != null || m.replyContent != null) Text(m.replyContent.orEmpty().take(200).ifBlank { "Anhang" }, Modifier.padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)).background(cs.surface.copy(alpha = .5f)).clickable(onClick = onQuote).padding(horizontal = 8.dp, vertical = 4.dp), maxLines = 2, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
                 if (m.hasAttachment) {
