@@ -142,7 +142,10 @@ fun ScheduleScreen(onSubject: (String, String?) -> Unit = { _, _ -> }) {
                     }
                     Column(Modifier.weight(1f).padding(bottom = 10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         if (slot.entries.isEmpty()) Text("Freistunde", style = MaterialTheme.typography.bodyMedium, color = cs.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp))
-                        slot.entries.forEach { e -> LessonCard(e) { onOpen(day!!, slot, e) } }
+                        pairSwaps(slot.entries, date) { it.move }.forEach { g ->
+                            if (g.size == 2) SwapCard(SwapPart(g[0].subject, g[0].extra.toMap()["Lehrer"], g[0].extra.toMap()["Raum"], g[0].move!!), SwapPart(g[1].subject, g[1].extra.toMap()["Lehrer"], g[1].extra.toMap()["Raum"], g[1].move!!), date, cs.tertiaryContainer, cs.onTertiaryContainer, RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)) { onOpen(day!!, slot, g[0]) }
+                            else LessonCard(g[0], date) { onOpen(day!!, slot, g[0]) }
+                        }
                     }
                 }
             }
@@ -150,7 +153,33 @@ fun ScheduleScreen(onSubject: (String, String?) -> Unit = { _, _ -> }) {
     }
 }
 
-@Composable private fun LessonCard(e: LessonEntry, onClick: () -> Unit) {
+internal data class SwapPart(val subject: String, val teacher: String?, val room: String?, val move: Move)
+private fun moveAt(d: LocalDate?, h: String?) = listOfNotNull(d?.let { Dates.weekday(it) + " " + "%02d.%02d.".format(it.dayOfMonth, it.monthValue) }, h?.let { "Std. " + it.replace("-", "–") }).joinToString(" · ")
+
+/** Gegenseitig getauschte Stunden als eine Karte: „Mathe statt Deutsch“, darunter je Fach woher → wohin. */
+@Composable internal fun SwapCard(into: SwapPart, away: SwapPart, day: LocalDate?, bg: androidx.compose.ui.graphics.Color, fg: androidx.compose.ui.graphics.Color, shape: androidx.compose.ui.graphics.Shape, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
+    @Composable fun line(p: SwapPart, incoming: Boolean) {
+        val where = if (incoming) moveAt(p.move.fromDate, p.move.fromHours) + "  \u2192  hier" else "hier  \u2192  " + moveAt(p.move.toDate, p.move.toHours)
+        Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(fg.copy(alpha = .12f)).padding(horizontal = 12.dp, vertical = 8.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Icon(if (incoming) Icons.Rounded.Login else Icons.Rounded.Logout, null, Modifier.size(18.dp), tint = fg)
+                Text(p.subject, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = fg)
+                Text(listOfNotNull(p.teacher, p.room).joinToString(" · "), style = MaterialTheme.typography.labelMedium, color = fg)
+            }
+            Text(where, style = MaterialTheme.typography.bodyMedium, color = fg)
+        }
+    }
+    Column(modifier.fillMaxWidth().clip(shape).background(bg).then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier).padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Icon(Icons.Rounded.SwapHoriz, null, tint = fg)
+            Text("${into.subject} statt ${away.subject}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = fg)
+        }
+        Text("Stunden getauscht", style = MaterialTheme.typography.labelLarge, color = fg)
+        line(into, true); line(away, false)
+    }
+}
+
+@Composable private fun LessonCard(e: LessonEntry, date: LocalDate, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
     val bg = if (e.cancelled) cs.errorContainer else if (e.changed) cs.tertiaryContainer else cs.surfaceContainer
     val fg = if (e.cancelled) cs.onErrorContainer else if (e.changed) cs.onTertiaryContainer else cs.onSurface
@@ -164,7 +193,8 @@ fun ScheduleScreen(onSubject: (String, String?) -> Unit = { _, _ -> }) {
             if (e.hint.isNotBlank()) Text(e.hint, style = MaterialTheme.typography.bodySmall, color = sub)
             if (e.cancelled) Text("Entfällt", style = MaterialTheme.typography.labelLarge, color = fg)
             e.diffs.forEach { (l, o, n) -> Text("$l: $o \u2192 $n", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg) }
-            if (e.changed && e.diffs.isEmpty()) e.extra.firstOrNull { it.first == "Verlegung" }?.let { Text("Verlegt: " + it.second, style = MaterialTheme.typography.labelLarge, color = fg) }
+            if (e.changed && e.diffs.isEmpty() && e.move != null) Text(if (e.move.toDate == date && e.move.fromDate != date) "Verlegt hierher von ${moveAt(e.move.fromDate, e.move.fromHours)}" else "Verlegt auf ${moveAt(e.move.toDate, e.move.toHours)}", style = MaterialTheme.typography.labelLarge, color = fg)
+            else if (e.changed && e.diffs.isEmpty()) e.extra.firstOrNull { it.first == "Verlegung" }?.let { Text("Verlegt: " + it.second, style = MaterialTheme.typography.labelLarge, color = fg) }
         }
     }
 }
@@ -233,7 +263,10 @@ fun ScheduleScreen(onSubject: (String, String?) -> Unit = { _, _ -> }) {
                 LazyColumn(contentPadding = PaddingValues(top = 8.dp, bottom = 32.dp)) {
                     d.notes.forEach { n -> item { InfoBanner(n, Icons.Rounded.Info, modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)) } }
                     if (rows.isEmpty()) item { EmptyState(Icons.Rounded.CheckCircle, "Keine Vertretungen", if (onlyMine) "Für deine Klasse gibt es an diesem Tag keine Änderungen." else "Für diesen Tag sind keine Änderungen eingetragen.") }
-                    itemsIndexed(rows) { i, r -> SubstitutionCard(r, i, rows.size, Modifier.animateItem()) }
+                    val groups = pairSwaps(rows, d.date) { it.move }
+                    itemsIndexed(groups) { i, g -> if (g.size == 2) { val (bg, fg) = cs.secondaryContainer to cs.onSecondaryContainer
+                        SwapCard(SwapPart(g[0].subject, g[0].teacher, g[0].room, g[0].move!!), SwapPart(g[1].subject, g[1].teacher, g[1].room, g[1].move!!), d.date, bg, fg, MsdShapes.listShape(i, groups.size), Modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp).animateItem()) }
+                        else SubstitutionCard(g[0], i, groups.size, Modifier.animateItem()) }
                 }
             }
         }

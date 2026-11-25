@@ -15,7 +15,25 @@ data class ChangeRow(
     val hours: String, val group: String, val subject: String, val teacher: String, val room: String, val info: String, val highlighted: Boolean,
     val cancelled: Boolean = false, val moved: Boolean = false, val reason: String? = null,
     /** Geänderte Felder (Bezeichnung, alt, neu), z. B. „Raum“, „313“, „312“. */ val diffs: List<Triple<String, String, String>> = emptyList(),
+    /** Bei Verlegungen: woher (Tag/Stunden) und wohin. */ val move: Move? = null,
 )
+/** Verlegung einer Stunde: von (Tag, Stunden) nach (Tag, Stunden). */
+data class Move(val fromDate: LocalDate?, val fromHours: String?, val toDate: LocalDate?, val toHours: String?) {
+    /** Gegenstück eines Tauschs: A verschiebt von X nach Y, B von Y nach X. */
+    fun swapsWith(o: Move) = fromDate == o.toDate && fromHours == o.toHours && toDate == o.fromDate && toHours == o.fromHours
+}
+/** Fasst gegenseitig getauschte Stunden zu Paaren zusammen (Rest als Einzelelemente). Das Paar steht in der Reihenfolge „kommt hierher“, „geht weg“, bezogen auf [day]. */
+fun <T> pairSwaps(items: List<T>, day: LocalDate?, move: (T) -> Move?): List<List<T>> {
+    val used = mutableSetOf<Int>(); val out = mutableListOf<List<T>>()
+    items.forEachIndexed { i, a ->
+        if (i in used) return@forEachIndexed
+        val ma = move(a); val j = if (ma == null) -1 else items.indices.firstOrNull { it > i && it !in used && move(items[it])?.let { mb -> ma.swapsWith(mb) } == true } ?: -1
+        if (j < 0) { out += listOf(a); return@forEachIndexed }
+        used += j; val b = items[j]
+        out += if (day != null && ma!!.toDate == day) listOf(a, b) else if (day != null && move(b)!!.toDate == day) listOf(b, a) else listOf(a, b)
+    }
+    return out
+}
 data class DayChanges(val date: LocalDate, val notes: List<String>, val rows: List<ChangeRow>)
 
 object ChangesParser {
@@ -38,7 +56,8 @@ object ChangesParser {
         val nothingNew = s("newSubject") == null && s("newTeachers") == null && s("newRooms") == null && !moved
         val cancelled = reason?.contains("ntf", true) == true || reason?.contains("ausf", true) == true || nothingNew
         ChangeRow(hours, change(s("classesOrGroups"), s("newClassesOrGroups")), change(s("subject"), s("newSubject")), change(s("teachers"), s("newTeachers")), change(s("rooms"), s("newRooms")),
-            listOfNotNull(reason, s("message"), s("text")).joinToString(" · "), true, cancelled, moved, reason, diffs)
+            listOfNotNull(reason, s("message"), s("text")).joinToString(" · "), true, cancelled, moved, reason, diffs,
+            if (moved) Move(date, range(idx), nDate ?: date, range(nIdx ?: idx)) else null)
     }
 
     fun fromJson(date: LocalDate, json: JsonElement): DayChanges {

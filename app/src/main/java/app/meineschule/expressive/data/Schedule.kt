@@ -11,7 +11,7 @@ import java.time.LocalDate
  * Zusatzfelder (Raum/Lehrkraft …) werden ohne `null`, leere Werte, `-1` und verschachtelte Objekte angezeigt;
  * „Entfall“ und „Änderung“ werden an Feldnamen/Texten erkannt.
  */
-data class LessonEntry(val subject: String, val cancelled: Boolean, val changed: Boolean, val extra: List<Pair<String, String>>, val reason: String?, val diffs: List<Triple<String, String, String>> = emptyList()) {
+data class LessonEntry(val subject: String, val cancelled: Boolean, val changed: Boolean, val extra: List<Pair<String, String>>, val reason: String?, val diffs: List<Triple<String, String, String>> = emptyList(), val move: Move? = null) {
     /** Kurzinfo für die Kachel (wie `ttHint` der Web-App: erste drei Werte). */
     val hint: String get() = extra.take(3).joinToString(" · ") { it.second }
 }
@@ -56,7 +56,7 @@ internal fun parseEntry(e: JsonElement, reps: List<ChangeRow> = emptyList()): Le
     val cancelled = j.bool("cancelled") == true || rep?.cancelled == true
     val extra = listOfNotNull(f("ct")?.let { "Klasse" to it }, f("tt")?.let { "Lehrer" to it }, f("rm")?.let { "Raum" to it }, f("gt")?.let { "Gruppe" to it }, f("txt")?.let { "Info" to it })
         .let { l -> if (rep == null) l else l + listOfNotNull(rep.hours.takeIf { rep.moved && it.isNotBlank() }?.let { "Verlegung" to it }, rep.info.takeIf { it.isNotBlank() }?.let { "Änderung" to it }) }
-    return LessonEntry(f("st") ?: (e as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: "–", cancelled, !cancelled && (rep != null || rix >= 0), extra, rep?.reason ?: rep?.let { "Änderung" }, rep?.diffs.orEmpty())
+    return LessonEntry(f("st") ?: (e as? kotlinx.serialization.json.JsonPrimitive)?.contentOrNull ?: "–", cancelled, !cancelled && (rep != null || rix >= 0), extra, rep?.reason ?: rep?.let { "Änderung" }, rep?.diffs.orEmpty(), rep?.move)
 }
 
 private fun slotTime(slot: JsonElement): TimeRange? {
