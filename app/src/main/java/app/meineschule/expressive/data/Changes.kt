@@ -34,6 +34,17 @@ fun <T> pairSwaps(items: List<T>, day: LocalDate?, move: (T) -> Move?): List<Lis
     }
     return out
 }
+enum class ChangeKind(val label: String) { Cancelled("Entfällt"), Moved("Verlegt"), New("Neue Stunde"), Teacher("Vertretung"), Room("Raumwechsel"), Subject("Fachwechsel"), Mixed("Änderung"), Info("Hinweis") }
+fun changeKind(cancelled: Boolean, moved: Boolean, reason: String?, diffs: List<Triple<String, String, String>>): ChangeKind {
+    val l = diffs.map { it.first }.toSet()
+    return when {
+        cancelled -> ChangeKind.Cancelled; moved -> ChangeKind.Moved
+        reason?.contains("neu", true) == true -> ChangeKind.New
+        "Fach" in l -> ChangeKind.Subject; l == setOf("Lehrer") -> ChangeKind.Teacher; l == setOf("Raum") -> ChangeKind.Room
+        l.isEmpty() -> ChangeKind.Info; else -> ChangeKind.Mixed
+    }
+}
+fun ChangeRow.kind() = changeKind(cancelled, moved, reason, diffs)
 data class DayChanges(val date: LocalDate, val notes: List<String>, val rows: List<ChangeRow>)
 
 object ChangesParser {

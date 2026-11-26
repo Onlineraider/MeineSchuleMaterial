@@ -186,13 +186,13 @@ private fun moveAt(d: LocalDate?, h: String?) = listOfNotNull(d?.let { Dates.wee
     val sub = if (e.cancelled || e.changed) fg else cs.onSurfaceVariant
     Row(Modifier.fillMaxWidth().clip(if (e.cancelled) RoundedCornerShape(16.dp) else RoundedCornerShape(20.dp, 20.dp, 20.dp, 8.dp)).background(bg).clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (e.cancelled || e.changed) KindChip(changeKind(e.cancelled, e.move != null, e.reason, e.diffs), fg)
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(e.subject, style = MaterialTheme.typography.titleMedium, textDecoration = if (e.cancelled) TextDecoration.LineThrough else null, color = fg)
                 if (e.cancelled) Icon(Icons.Rounded.EventBusy, "Entfällt", Modifier.size(18.dp), tint = fg) else if (e.changed) Icon(Icons.Rounded.SwapHoriz, "Änderung", Modifier.size(18.dp), tint = fg)
             }
             if (e.hint.isNotBlank()) Text(e.hint, style = MaterialTheme.typography.bodySmall, color = sub)
-            if (e.cancelled) Text("Entfällt", style = MaterialTheme.typography.labelLarge, color = fg)
-            e.diffs.forEach { (l, o, n) -> Text("$l: $o \u2192 $n", style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg) }
+            e.diffs.forEach { (l, o, n) -> DiffLine(if (l == "Lehrer") "Lehrkraft" else l, o, n, fg) }
             if (e.changed && e.diffs.isEmpty() && e.move != null) Text(if (e.move.toDate == date && e.move.fromDate != date) "Verlegt hierher von ${moveAt(e.move.fromDate, e.move.fromHours)}" else "Verlegt auf ${moveAt(e.move.toDate, e.move.toHours)}", style = MaterialTheme.typography.labelLarge, color = fg)
             else if (e.changed && e.diffs.isEmpty()) e.extra.firstOrNull { it.first == "Verlegung" }?.let { Text("Verlegt: " + it.second, style = MaterialTheme.typography.labelLarge, color = fg) }
         }
@@ -275,26 +275,51 @@ private fun moveAt(d: LocalDate?, h: String?) = listOfNotNull(d?.let { Dates.wee
     }
 }
 
-/** Karte für eine Vertretung: kräftige, kontrastreiche Farben je Art (Entfall / Änderung / Verlegung) und klare „alt → neu“-Zeilen. */
+internal fun kindIcon(k: ChangeKind) = when (k) { ChangeKind.Cancelled -> Icons.Rounded.EventBusy; ChangeKind.Moved -> Icons.Rounded.SwapHoriz; ChangeKind.New -> Icons.Rounded.AddCircle; ChangeKind.Teacher -> Icons.Rounded.Person; ChangeKind.Room -> Icons.Rounded.MeetingRoom; ChangeKind.Subject -> Icons.Rounded.Edit; ChangeKind.Mixed -> Icons.Rounded.SwapHoriz; ChangeKind.Info -> Icons.Rounded.Info }
+@Composable internal fun kindColors(k: ChangeKind): Pair<androidx.compose.ui.graphics.Color, androidx.compose.ui.graphics.Color> { val cs = MaterialTheme.colorScheme
+    return when (k) { ChangeKind.Cancelled -> cs.errorContainer to cs.onErrorContainer; ChangeKind.Moved -> cs.secondaryContainer to cs.onSecondaryContainer; ChangeKind.New -> cs.primaryContainer to cs.onPrimaryContainer
+        ChangeKind.Info -> cs.surfaceContainerHigh to cs.onSurface; else -> cs.tertiaryContainer to cs.onTertiaryContainer } }
+
+/** Kleines Etikett mit Symbol: sagt auf den ersten Blick, WAS sich ändert (Entfall, Vertretung, Raumwechsel, …). */
+@Composable internal fun KindChip(k: ChangeKind, fg: androidx.compose.ui.graphics.Color) {
+    Row(Modifier.clip(CircleShape).background(fg.copy(alpha = .16f)).padding(horizontal = 10.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Icon(kindIcon(k), null, Modifier.size(16.dp), tint = fg); Text(k.label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = fg)
+    }
+}
+
+/** Eine geänderte Angabe: alte Angabe blass und durchgestrichen → neue Angabe groß und fett. */
+@Composable internal fun DiffLine(label: String, old: String, new: String, fg: androidx.compose.ui.graphics.Color) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(label, Modifier.width(72.dp), style = MaterialTheme.typography.labelMedium, color = fg.copy(alpha = .8f))
+        if (old != "–") { Text(old, style = MaterialTheme.typography.bodyLarge, color = fg.copy(alpha = .65f), textDecoration = TextDecoration.LineThrough); Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, Modifier.size(16.dp), tint = fg) }
+        Text(new, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = fg)
+    }
+}
+
+/** Karte für eine Vertretung: Art der Änderung als farbiges Etikett, geänderte Werte „alt → neu“ groß, unveränderte klein, Hinweistext hervorgehoben. */
 @Composable private fun SubstitutionCard(r: ChangeRow, i: Int, n: Int, modifier: Modifier = Modifier) {
-    val cs = MaterialTheme.colorScheme
-    val (bg, fg) = when { r.cancelled -> cs.errorContainer to cs.onErrorContainer; r.moved -> cs.secondaryContainer to cs.onSecondaryContainer; else -> cs.tertiaryContainer to cs.onTertiaryContainer }
-    fun arrow(s: String) = s.replace(" > ", " \u2192 ")
-    val big = r.hours.substringBefore(' ').ifBlank { "–" }
-    Row(modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp).fillMaxWidth().clip(MsdShapes.listShape(i, n)).background(bg).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+    val k = r.kind(); val (bg, fg) = kindColors(k)
+    val big = r.hours.substringBefore(' ').ifBlank { "–" }.substringBefore('>').trim()
+    val titleSubject = (if (r.cancelled) r.subject.substringBefore(" > ") else r.subject.substringAfterLast(" > ")).ifBlank { "Stunde" }
+    val changed = r.diffs.map { it.first }.toSet()
+    Row(modifier.padding(horizontal = 16.dp).padding(bottom = 6.dp).fillMaxWidth().clip(MsdShapes.listShape(i, n)).background(bg).padding(16.dp), horizontalArrangement = Arrangement.spacedBy(14.dp)) {
         Column(Modifier.width(56.dp).clip(RoundedCornerShape(16.dp)).background(fg.copy(alpha = .14f)).padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Std.", style = MaterialTheme.typography.labelSmall, color = fg); Text(big.substringBefore('>').trim(), style = MaterialTheme.typography.titleLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg)
+            Text("Std.", style = MaterialTheme.typography.labelSmall, color = fg); Text(big, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = fg)
         }
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(arrow(r.subject.ifBlank { "Änderung" }), style = MaterialTheme.typography.titleMedium, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg, textDecoration = if (r.cancelled) TextDecoration.LineThrough else null, modifier = Modifier.weight(1f, fill = false))
-                Icon(if (r.cancelled) Icons.Rounded.EventBusy else Icons.Rounded.SwapHoriz, null, Modifier.size(18.dp), tint = fg)
+                KindChip(k, fg); Spacer(Modifier.weight(1f))
+                if (r.group.isNotBlank()) Text(r.group.replace(" > ", " → "), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = fg)
             }
-            if (r.group.isNotBlank()) Text(arrow(r.group), style = MaterialTheme.typography.labelLarge, color = fg)
-            Text(when { r.cancelled -> "Entfällt"; r.moved -> "Verlegt: ${arrow(r.hours)}"; else -> "Änderung" }, style = MaterialTheme.typography.labelLarge, fontWeight = androidx.compose.ui.text.font.FontWeight.Bold, color = fg)
-            if (r.teacher.isNotBlank()) Text("Lehrkraft: ${arrow(r.teacher)}", style = MaterialTheme.typography.bodyMedium, fontWeight = if (" > " in r.teacher) androidx.compose.ui.text.font.FontWeight.Bold else null, color = fg)
-            if (r.room.isNotBlank()) Text("Raum: ${arrow(r.room)}", style = MaterialTheme.typography.bodyMedium, fontWeight = if (" > " in r.room) androidx.compose.ui.text.font.FontWeight.Bold else null, color = fg)
-            if (r.info.isNotBlank()) Text(r.info, style = MaterialTheme.typography.bodyMedium, color = fg)
+            Text(titleSubject, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = fg, textDecoration = if (r.cancelled) TextDecoration.LineThrough else null)
+            r.move?.let { m -> if (!r.cancelled) {
+                Text("Von  ${moveAt(m.fromDate, m.fromHours)}", style = MaterialTheme.typography.bodyLarge, color = fg.copy(alpha = .7f), textDecoration = TextDecoration.LineThrough)
+                Text("Nach  ${moveAt(m.toDate, m.toHours)}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = fg) } }
+            r.diffs.filter { it.first != "Klasse/Gruppe" && !(k == ChangeKind.New && it.first == "Fach") }.forEach { (l, o, nw) -> DiffLine(if (l == "Lehrer") "Lehrkraft" else l, o, nw, fg) }
+            val same = listOfNotNull(r.teacher.takeIf { it.isNotBlank() && "Lehrer" !in changed && " > " !in it }?.let { "Lehrkraft $it" }, r.room.takeIf { it.isNotBlank() && "Raum" !in changed && " > " !in it }?.let { "Raum $it" })
+            if (same.isNotEmpty() && !r.cancelled) Text(same.joinToString(" · "), style = MaterialTheme.typography.bodyMedium, color = fg.copy(alpha = .85f))
+            val note = r.info.takeIf { it.isNotBlank() }?.let { txt -> r.reason?.let { rs -> txt.removePrefix(rs).trimStart(' ', '·') } ?: txt }?.takeIf { it.isNotBlank() }
+            note?.let { t -> Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(fg.copy(alpha = .14f)).padding(10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) { Icon(Icons.Rounded.Info, null, Modifier.size(18.dp), tint = fg); Text(t, style = MaterialTheme.typography.bodyMedium, color = fg) } }
         }
     }
 }
