@@ -291,7 +291,7 @@ internal fun kindIcon(k: ChangeKind) = when (k) { ChangeKind.Cancelled -> Icons.
 @Composable internal fun DiffLine(label: String, old: String, new: String, fg: androidx.compose.ui.graphics.Color) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(label, Modifier.width(72.dp), style = MaterialTheme.typography.labelMedium, color = fg.copy(alpha = .8f))
-        if (old != "–") { Text(old, style = MaterialTheme.typography.bodyLarge, color = fg.copy(alpha = .65f), textDecoration = TextDecoration.LineThrough); Icon(Icons.AutoMirrored.Rounded.ArrowForward, null, Modifier.size(16.dp), tint = fg) }
+        if (old != "–") { Text(old, style = MaterialTheme.typography.bodyLarge, color = fg.copy(alpha = .65f), textDecoration = TextDecoration.LineThrough); Icon(Icons.Rounded.ArrowForward, null, Modifier.size(16.dp), tint = fg) }
         Text(new, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = fg)
     }
 }
