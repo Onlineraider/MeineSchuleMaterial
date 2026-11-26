@@ -212,7 +212,9 @@ private fun moveAt(d: LocalDate?, h: String?) = listOfNotNull(d?.let { Dates.wee
                 days.forEach { d ->
                     val es = d.slots.getOrNull(r)?.entries.orEmpty()
                     Column(Modifier.weight(1f).padding(2.dp).clip(RoundedCornerShape(10.dp)).background(if (es.isEmpty()) androidx.compose.ui.graphics.Color.Transparent else if (es.any { it.cancelled }) cs.errorContainer else if (es.any { it.changed }) cs.tertiaryContainer else cs.secondaryContainer).defaultMinSize(minHeight = 44.dp).padding(4.dp), verticalArrangement = Arrangement.Center) {
-                        es.forEach { e -> Text(e.subject, style = MaterialTheme.typography.labelSmall, maxLines = 2, color = if (e.cancelled) cs.onErrorContainer else if (e.changed) cs.onTertiaryContainer else cs.onSecondaryContainer, textDecoration = if (e.cancelled) TextDecoration.LineThrough else null) }
+                        es.sortedBy { e -> if (e.move != null && e.move.fromDate == d.date && e.move.toDate != d.date) 1 else 0 }.forEach { e ->
+                            val away = e.move != null && e.move.fromDate == d.date && e.move.toDate != d.date   // Stunde wurde von hier wegverlegt/getauscht → durchstreichen
+                            Text(e.subject, style = MaterialTheme.typography.labelSmall, maxLines = 2, fontWeight = if (e.changed && !away) FontWeight.Bold else null, color = (if (e.cancelled) cs.onErrorContainer else if (e.changed) cs.onTertiaryContainer else cs.onSecondaryContainer).let { c -> if (away) c.copy(alpha = .6f) else c }, textDecoration = if (e.cancelled || away) TextDecoration.LineThrough else null) }
                     }
                 }
             }
