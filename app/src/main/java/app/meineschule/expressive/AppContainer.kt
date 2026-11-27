@@ -63,7 +63,7 @@ class Prefs(ctx: Context) {
     /** Lernstände der Unterrichtszeiten (Portal liefert keine Uhrzeiten) */
     /** Zuletzt vom Portal gelieferte Startzeiten (für die Standard-Stundenzeiten, auch außerhalb des Stundenplans). */
     var portalStarts: String get() = sp.getString("portalStarts", "") ?: ""; set(v) { sp.edit().putString("portalStarts", v).apply() }
-    /** Stundenzeiten: eigene Zeiten, sonst Portal-Startzeiten (+45 min), sonst Standard. */
+    /** Stundenzeiten: eigene Zeiten, sonst Portal-Startzeiten (Länge = kleinster Abstand zweier Starts), sonst Standard. */
     fun effectiveTimes(starts: List<String> = emptyList()): List<TimeRange> {
         LessonTimes.parse(lessonTimes.takeIf { it != null }).takeIf { lessonTimes != null }?.let { return it }
         val s = starts.ifEmpty { portalStarts.split(',').filter { it.isNotBlank() } }

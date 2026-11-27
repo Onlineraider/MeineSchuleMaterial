@@ -33,8 +33,16 @@ object LessonTimes {
     val DEFAULT = listOf("07:50" to "08:35", "08:40" to "09:25", "09:45" to "10:30", "10:35" to "11:20", "11:40" to "12:25", "12:30" to "13:15", "13:35" to "14:20", "14:25" to "15:10", "15:15" to "16:00", "16:05" to "16:50").map { TimeRange(it.first, it.second) }
     fun parse(s: String?): List<TimeRange> = runCatching { s?.split(';')?.mapNotNull { p -> p.split('-').takeIf { it.size == 2 && Regex("\\d\\d:\\d\\d").matches(it[0]) && Regex("\\d\\d:\\d\\d").matches(it[1]) }?.let { TimeRange(it[0], it[1]) } }.orEmpty() }.getOrDefault(emptyList()).ifEmpty { DEFAULT }
     fun serialize(l: List<TimeRange>) = l.joinToString(";") { "${it.from}-${it.to}" }
-    /** Portal liefert nur Startzeiten ("08:00:00"); Ende = Start + 45 Min. (Dauer in den Einstellungen anpassbar über die Zeiten). */
-    fun fromStarts(starts: List<String>): List<TimeRange> = starts.map { it.take(5) }.filter { Regex("\\d\\d:\\d\\d").matches(it) }.map { st -> val m = toMin(st) + 45; TimeRange(st, "%02d:%02d".format(m / 60, m % 60)) }
+    /**
+     * Das Portal liefert nur Startzeiten („08:00:00“). Die Stundenlänge wird aus dem kleinsten Abstand zweier aufeinanderfolgender Startzeiten abgeleitet
+     * (bei 08:00, 08:40, 09:40 … ergibt das 40 Minuten); Ende = Start + Länge. Ohne brauchbaren Abstand 45 Minuten.
+     */
+    fun lessonLength(starts: List<String>): Int {
+        val m = starts.map { it.take(5) }.filter { Regex("\\d\\d:\\d\\d").matches(it) }.map { toMin(it) }.sorted().distinct()
+        return m.zipWithNext { a, b -> b - a }.filter { it in 20..120 }.minOrNull() ?: 45
+    }
+    fun fromStarts(starts: List<String>): List<TimeRange> { val len = lessonLength(starts)
+        return starts.map { it.take(5) }.filter { Regex("\\d\\d:\\d\\d").matches(it) }.map { st -> val m = toMin(st) + len; TimeRange(st, "%02d:%02d".format(m / 60, m % 60)) } }
     /** (aktuelle, nächste) Stunde für den Tag. */
     fun current(day: ScheduleDay?, times: List<TimeRange>, now: java.time.LocalTime = java.time.LocalTime.now()): Pair<Slot?, Slot?> {
         val m = now.hour * 60 + now.minute; var cur: Slot? = null; var next: Slot? = null

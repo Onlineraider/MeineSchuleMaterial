@@ -84,7 +84,7 @@ fun SettingsScreen(onBack: () -> Unit, nav: androidx.navigation.NavHostControlle
                 val eff = app.prefs.effectiveTimes()
                 Column(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(Modifier.weight(1f)) { Text("Eigene Zeiten verwenden", style = MaterialTheme.typography.titleMedium); Text(if (custom) "Du hast eigene Unterrichtszeiten festgelegt." else "Standard: Startzeiten deines Schulportals (Ende = Start + 45 Minuten).", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
+                        Column(Modifier.weight(1f)) { Text("Eigene Zeiten verwenden", style = MaterialTheme.typography.titleMedium); Text(if (custom) "Du hast eigene Unterrichtszeiten festgelegt." else "Standard: Startzeiten deines Schulportals. Die Stundenlänge (${app.prefs.portalStarts.split(',').filter { it.isNotBlank() }.takeIf { it.isNotEmpty() }?.let { LessonTimes.lessonLength(it) } ?: 45} Min.) wird aus dem kleinsten Abstand zweier Startzeiten erkannt.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant) }
                         Switch(custom, { on -> custom = on; if (on) { if (app.prefs.lessonTimes == null) app.prefs.lessonTimes = LessonTimes.serialize(eff); edit = true } else app.prefs.lessonTimes = null })
                     }
                     Text(eff.mapIndexed { i, t -> "${i + 1}. ${t.from}–${t.to}" }.joinToString("  ·  "), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
